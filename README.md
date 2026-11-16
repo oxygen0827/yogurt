@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Download for <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-mac-arm64.dmg">Mac</a> · <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-windows-x64.exe">Windows</a> · <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-linux-x86_64.AppImage">Linux</a>
+  Download for <a href="https://github.com/oxygen0827/yogurt/releases/download/fork-0.3.27.1/Yogurt-0.3.27-fork-speakers-notes-arm64.dmg">Mac (Apple Silicon, fork)</a> · <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-windows-x64.exe">Windows (upstream)</a> · <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-linux-x86_64.AppImage">Linux (upstream)</a>
 </p>
 
 <p align="center">
@@ -26,13 +26,20 @@
   Made by <a href="https://frigade.com?utm_source=github&utm_medium=readme&utm_campaign=yogurt">Frigade</a>.
 </p>
 
+## 腾讯会议与飞书会议（macOS）
+
+此 fork 为腾讯会议和飞书的 Mac 桌面客户端增加了录制提醒和发言人标注。
+
+- **录制提醒**：当客户端使用麦克风时，Yogurt 会提示你录制，点击确认后才开始。麦克风测试也可能触发提醒；如果静音入会时客户端尚未使用麦克风，可以在 Yogurt 中手动开始录音。
+- **发言人标注**：在「系统设置 → 隐私与安全性 → 辅助功能」中允许 Yogurt 后，它会读取会议窗口显示的发言人姓名，并标到对方的转写上。客户端没有提供明确标记时，转写保留「对方」。录制提醒无需这项权限。
+
 ## What it does
 
 - **Live transcripts.** Yogurt records calls and turns speech into text as you talk.
 - **Meeting summaries.** Yogurt writes up the conversation and any notes you add.
 - **Private by default.** Your audio, transcripts and AI processing stay on your computer.
 - **Free and open source.** You can use Yogurt without an account.
-- **Who said what.** Yogurt names speakers from Zoom, Teams and Meet on Mac only.
+- **Who said what.** On Mac, Yogurt can label remote speakers when Zoom, Teams, Meet, Tencent Meeting or Feishu shows who is speaking.
 - **Languages.** Multi-language mode transcribes 99 languages.
 - **Recording reminders.** Yogurt offers to record when a supported call starts.
 - **Answers with sources.** Yogurt answers questions across meetings and links to the source.
@@ -155,7 +162,7 @@ Meeting data stays local; Yogurt goes online for model downloads and update chec
 
 <br>
 
-> You can record calls in any app because Yogurt captures your microphone and system audio. Call detection covers Zoom, Teams and Meet. On Mac, Yogurt can also read their speaker names with Accessibility permission, when the call app shows who is speaking.
+> You can record calls in any app because Yogurt captures your microphone and system audio. Call detection covers Zoom, Teams and Meet. This fork also detects microphone use by the Tencent Meeting (腾讯会议) and Feishu (飞书) desktop apps on macOS and offers to record. Grant Yogurt Accessibility access to label remote speakers when the meeting window identifies them.
 
 </details>
 
