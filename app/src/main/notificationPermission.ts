@@ -7,6 +7,9 @@ import { loadSettings, updateSettings } from './settings'
 
 /** A designated requirement includes the bundle ID and signer, but no install path or build version. */
 export function notificationIdentity(output: string): string | null {
+  // Ad-hoc builds have a requirement scoped to this exact binary.
+  const adHoc = output.match(/^# designated => cdhash H"([0-9a-f]{40})"$/im)
+  if (adHoc) return 'cdhash:' + adHoc[1].toLowerCase()
   const requirement = output.match(/^designated => .+$/m)?.[0].trim()
   return requirement && /identifier "[^"]+"/.test(requirement) && /certificate |anchor |cdhash /.test(requirement) ? requirement : null
 }

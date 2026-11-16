@@ -8,7 +8,7 @@
 /** one element of the tree as the helper copies it: role, subrole, description, title, value, identifier, DOM classes, size */
 export type AxNode = { r: string; s?: string; d?: string; t?: string; v?: string; i?: string; c?: string[]; w?: number; h?: number; k?: AxNode[] }
 export type AxWindow = { title?: string; id?: string; tree: AxNode }
-export type CallKind = 'zoom' | 'teams' | 'meet' | 'webex'
+export type CallKind = 'zoom' | 'teams' | 'meet' | 'webex' | 'tencent' | 'feishu'
 export type CallReading = { speaking: string[]; participants: string[]; me: string | null }
 
 // A role has two names: macOS Accessibility says AXTabGroup, AXStaticText, AXRow, AXOutline; AT-SPI (Linux) says
@@ -296,8 +296,54 @@ function readWebex(windows: AxWindow[]): CallReading {
   return { speaking: uniq(speaking), participants: uniq(participants), me }
 }
 
+// Native call windows may expose the active speaker as a status label or on a participant tile.
+function readMeetingSpeaker(windows: AxWindow[]): CallReading {
+  const speaking: string[] = []
+  let me: string | null = null
+  for (const window of windows) {
+    walk(window.tree, (node, parents) => {
+      if ([...parents, node].some(n => /chat|聊天|字幕|caption/i.test([n.i, n.t, n.d].filter(Boolean).join(' ')) &&
+        ['AXGroup', 'AXList', 'AXTable', 'AXScrollArea', 'AXTextArea'].includes(n.r))) return
+      if (!['AXStaticText', 'AXGroup', 'AXButton', 'AXRow', 'AXCell', 'AXImage'].includes(node.r)) return
+      // Some builds put the name and the speaking indicator in separate elements of one tile.
+      const roleTags = [node.i, ...(node.c ?? [])].filter(Boolean).join(' ')
+      if (/participant|attendee|video.?tile|speaker.?tile/i.test(roleTags) || node.r === 'AXRow') {
+        const names: string[] = []
+        let active = false, self = false
+        walk(node, child => {
+          const tags = [child.i, ...(child.c ?? [])].filter(Boolean).join(' ')
+          const labels = texts(child).map(text => text.normalize('NFKC').trim())
+          if (/(?:participant|attendee|display|speaker)[_-]?name/i.test(tags)) {
+            const name = (child.v ?? child.t ?? child.d)?.trim()
+            if (name && name.length <= 60) names.push(name)
+          }
+          if (labels.some(label => /^(?:正在发言|正在说话|正在讲话|speaking|active speaker)$/i.test(label))) active = true
+          if (labels.some(label => /^(?:\(?(?:我|自己|you|me)\)?)$/i.test(label))) self = true
+        })
+        const distinct = uniq(names)
+        if (distinct.length === 1) {
+          if (self) me = distinct[0]
+          else if (active) speaking.push(distinct[0])
+        }
+      }
+      for (const raw of texts(node)) {
+        const label = raw.normalize('NFKC').trim()
+        const match = /^(?:正在(?:发言|讲话|说话)|当前(?:发言人|讲话者|演讲者)|active speaker|speaking)\s*:\s*(.{1,60})$/iu.exec(label)
+          ?? /^(.{1,60}?)(?:\s*(?:正在发言|正在说话|正在讲话|发言中)|(?:\s*,\s*|\s+is\s+)speaking)$/iu.exec(label)
+        if (!match) continue
+        const name = match[1].replace(/\s*\((?:我|自己|you|me)\)$/iu, '').trim()
+        if (!name || !/\p{L}/u.test(name) || /[,:;!?。！？\n]/u.test(name)) continue
+        if (name !== match[1].trim() || /^(?:我|自己|you|me)$/iu.test(name)) me = name
+        else speaking.push(name)
+      }
+    })
+  }
+  return { speaking: uniq(speaking), participants: [], me }
+}
+
 /** What the call app shows right now */
 export function readCall(kind: CallKind, windows: AxWindow[], o: { talkingClasses?: string[] } = {}): CallReading {
+  if (kind === 'feishu' || kind === 'tencent') return readMeetingSpeaker(windows)
   return kind === 'zoom' ? readZoom(windows) : kind === 'meet' ? readMeet(windows, o) : kind === 'webex' ? readWebex(windows) : readTeams(windows)
 }
 

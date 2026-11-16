@@ -1,4 +1,7 @@
 /** Messages between the main process and the notes model's worker (src/engine/worker.ts) */
+/** A running engine exited on its own; a fresh process can replay an unfinished summary. */
+export class EngineExitedError extends Error {}
+
 /** the notes model's context: what is worth asking for (an hour's meeting read whole), and the least taken */
 export const CONTEXT = 32_768
 export const MIN_CONTEXT = 8192

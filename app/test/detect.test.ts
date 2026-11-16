@@ -91,6 +91,8 @@ describe('real bundle ids', () => {
   const p = (bundleId: string, extra: object = {}) => decide(sig({ micApps: [{ bundleId, name: 'x', ...extra }], runningApps: [callAppId(bundleId)!] }), NOW, none)?.app
   it.each([
     ['us.zoom.xos', 'Zoom'], ['us.zoom.xos.helper', 'Zoom'],
+    ['com.tencent.meeting', '腾讯会议'], ['com.tencent.meeting.services.wmexternal', '腾讯会议'],
+    ['com.bytedance.macos.feishu', '飞书'], ['com.bytedance.macos.feishu.helper.renderer', '飞书'],
     ['com.microsoft.teams', 'Teams'], ['com.microsoft.teams2', 'Teams'], ['com.microsoft.teams2.helper', 'Teams'],
     ['com.cisco.webexmeetingsapp', 'Webex'], ['Cisco-Systems.Spark', 'Webex'], ['com.apple.FaceTime', 'FaceTime'],
     ['com.tinyspeck.slackmacgap', 'Slack'], ['com.hnc.Discord', 'Discord'],

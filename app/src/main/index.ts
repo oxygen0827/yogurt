@@ -11,7 +11,7 @@ import { isAppRoute } from '../shared/routes'
 import { resumesNote } from '../shared/agendaNote'
 import { relaunchOptions, stripAppImageEnv } from './relaunch'
 import { capabilities, micListHelper, platformOf, supportedKinds } from '../shared/platform'
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, protocol, shell, systemPreferences } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { basename, join } from 'node:path'
@@ -51,7 +51,7 @@ import { activeCapture, audioHelperPath, hookCapture, joinParts, onCaptureStart,
 import { createWidget } from './widget'
 import { hookTranscription, transcribeRecorded, onWhisperGpuOff, meetingLanguage, settleTranscription, speechLocaleFor, spokenChanged, transcriptionBacklogMs, stopTranscriptionServer, transcriptFinished, transcriptPartials } from './asr'
 import { hookCallNames, type Watch } from './callNames'
-import { helperWatch, killAllWatches } from './callNames/watch'
+import { helperWatch, macCallWatch, killAllWatches } from './callNames/watch'
 import { macFullName } from './user'
 import { setJargon, setOwnerName } from './vocab'
 import { cleanJargon } from '../shared/jargon'
@@ -199,7 +199,8 @@ onRecordingEvent((e) => { if (e.t === 'warn' && e.code === 'no-mic') micBlocked 
  */
 const notificationPermission = createNotificationPermission(join(userDataDir(), 'settings.json'))
 const permissions = createPermissions({
-  helper: (a) => runHelper(a),
+  helper: runHelper,
+  accessibility: platform === 'darwin' && !isFake() ? (prompt) => systemPreferences.isTrustedAccessibilityClient(prompt) : undefined,
   // Requested before is not proof that permission was granted.
   notifications: () => isFake() ? fakeAccess.notifications : notificationPermission.status(),
   askNotifications: async () => isFake() ? askFakeNotifications() : notificationPermission.request(),
@@ -511,11 +512,11 @@ app.whenReady().then(() => {
   setJargon(() => cleanJargon(loadSettings(settingsFile).jargon))
   // names from the call: the call app is read while a meeting records, and each line of the other side gets the name talking then
   const callNames = hookCallNames({
-    store, watch: !caps.callNames ? () => ({ stop() {} }) : isFake() ? fakeCallWatch : helperWatch(helperPath), myNames: () => [me(), macName()],
+    store, watch: !caps.callNames ? () => ({ stop() {} }) : isFake() ? fakeCallWatch : process.platform === 'darwin' ? macCallWatch(helperPath) : helperWatch(helperPath), myNames: () => [me(), macName()],
     transcribed: async (id) => { await recordingFinished(id); await transcriptFinished(id) },
     // people seen in the call joined the meeting: unedited notes already written get written again for them
     changed: (id) => { win?.webContents.send('transcript:speakers', id); sendWidgetTranscript('transcript:speakers', id); win?.webContents.send('meetings:changed'); notes.applyPeople(id) },
-    onStart: onMeetingStart, onStop: onMeetingStop, onCapture: onCaptureStart,
+    onStart: onMeetingStart, onStop: onMeetingStop, onCapture: onCaptureStart, onChange: onMeetingChange,
   })
   // Windows and Linux: whisper left the graphics card in a meeting, so the speed check (timed with it) runs again next start
   onWhisperGpuOff(() => speedStore(speedFile()).forget())
@@ -604,7 +605,7 @@ app.whenReady().then(() => {
   const notes = hookNotes({
     summarized: id => { folderSuggestions.schedule(id); void removeRecording(id, true) },
     // Windows and Linux: a note waiting while the model loads says so (a Mac shows what it always did)
-    showLoading: platform !== 'darwin',
+    showLoading: true,
     store, queue, model, language: meetingLanguage, onStop: onMeetingStopSaved, named: (id) => callNames.finished(id), earlier: (id) => readAhead.parts(id), me,
     transcribed: async (id) => { await recordingFinished(id); await transcriptFinished(id) },
     send: (v) => win?.webContents.send('notes:changed', v),
@@ -800,6 +801,7 @@ app.whenReady().then(() => {
   let finishing = false, discardUnsaved = false
   const resumeEditing = () => {
     finishing = false; allowQuit = false; discardUnsaved = false
+    queue.setQuitting(false)
     win?.webContents.send('notes:flush-request', null)
   }
   app.on('browser-window-created', (_e, window) => {
@@ -830,6 +832,7 @@ app.whenReady().then(() => {
         }
         discardUnsaved = true
       }
+      queue.setQuitting(true)
       // If final unload is vetoed, the resumed UI must describe the same stopped capture.
       const recording = activeMeeting()
       if (recording) stopMeeting(recording.id)

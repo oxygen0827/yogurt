@@ -32,6 +32,8 @@ afterEach(() => {
 })
 
 it('uses the bundle and signing requirement, excluding the install path', () => {
+  const hash = '73f767367299bc253852e58d738529c7c3a59695'
+  expect(notificationIdentity(`# designated => cdhash H"${hash}"\n`)).toBe('cdhash:' + hash)
   expect(notificationIdentity(`Executable=/somewhere/Yogurt.app\n${local}\n`)).toBe(local)
   expect(notificationIdentity('code object is not signed at all')).toBeNull()
   expect(notificationIdentity('designated => identifier "so.yogurt.app"')).toBeNull()

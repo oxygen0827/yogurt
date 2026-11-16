@@ -329,3 +329,15 @@ describe('notes queue', () => {
     })
   })
 })
+
+it('defers new summaries during quit and resumes them if the window vetoes quit', async () => {
+  const q = createQueue({ recording: () => false, smallMac: true })
+  const job = vi.fn(async () => {})
+  q.setQuitting(true)
+  const done = q.enqueue(job, 'enhance', 'stopped-meeting')
+  await tick()
+  expect(job).not.toHaveBeenCalled()
+  q.setQuitting(false)
+  await done
+  expect(job).toHaveBeenCalledOnce()
+})

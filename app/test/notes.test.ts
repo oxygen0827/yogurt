@@ -475,3 +475,12 @@ it('still refreshes the auto title when an editor keeps changes over an attendee
   expect(s.store.meeting(s.m.id)!.title).toBe('Planning with Guest')
   expect(s.prompts.filter(p => p.startsWith('Now give this meeting a title'))).toHaveLength(1)
 })
+
+it('retries a crashed engine once and saves only the completed summary', async () => {
+  const { EngineExitedError } = await import('../src/shared/engine-protocol')
+  let crashed = false
+  const s = setup({ during: () => { if (!crashed) { crashed = true; throw new EngineExitedError() } } })
+  await s.notes.writeAgain(s.m.id)
+  expect(crashed).toBe(true)
+  expect(s.store.notes(s.m.id).enhanced).toContain('We ship Tuesday')
+})

@@ -4,6 +4,7 @@ import type { NotesModel } from './model'
 import type { NoteSaveResult, NoteSide, NoteStatus, NoteView } from '../../shared/types'
 import { cleanTitle, enhance, languageName, titlePrompt, type Llm, type PartSummary } from './enhance'
 import { meetingWords } from '../vocab'
+import { EngineExitedError } from '../../shared/engine-protocol'
 import type { Queue } from './queue'
 
 /** The notes wait for the transcript and the names from the call, but never longer than this for the names */
@@ -220,7 +221,14 @@ export function hookNotes(p: {
   const queueWrite = (id: string) => {
     console.info('NOTES', `queued the notes of ${id}`)
     set(id, 'waiting')
-    return p.queue.enqueue((signal) => write(id, signal), 'enhance', id).catch(() => {})
+    return p.queue.enqueue(async (signal) => {
+      try { await write(id, signal) } catch (error) {
+        if (!(error instanceof EngineExitedError) || signal.aborted) throw error
+        console.warn('NOTES', 'restarting the engine to retry the unfinished summary', id)
+        set(id, 'waiting')
+        await write(id, signal)
+      }
+    }, 'enhance', id).catch(() => {})
   }
 
   /** each meeting's notes after it stopped, until they are written */

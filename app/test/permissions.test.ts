@@ -244,3 +244,14 @@ describe('music on quit', () => {
     expect(Date.now() - t0).toBeLessThan(1000)
   })
 })
+
+it('uses the same macOS app identity for the accessibility prompt and its status', async () => {
+  let enabled = false
+  const helper = async () => ({ accessibility: true })
+  const permissions = createPermissions({
+    helper, accessibility: prompt => { if (prompt) enabled = true; return enabled },
+    notifications: () => 'unknown', askNotifications: async () => 'unknown', open: () => {},
+  })
+  expect((await permissions.status()).accessibility).toBe('unknown')
+  expect(await permissions.request('accessibility')).toBe('granted')
+})

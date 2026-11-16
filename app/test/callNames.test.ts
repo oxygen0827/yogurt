@@ -194,3 +194,28 @@ describe('hookCallNames', () => {
     await wait()
   })
 })
+
+it.each([['腾讯会议', 'com.tencent.meeting'], ['飞书', 'com.bytedance.macos.feishu']])(
+  'attributes other-side speech in %s and ignores a matching phrase in chat', async (app, bundleId) => {
+    const s = setup({ app })
+    s.start()
+    expect(s.watched).toEqual([[bundleId]])
+    s.audio(1_000, 1_001_100)
+    const tree = { r: 'AXWindow', k: [
+      { r: 'AXStaticText', v: '正在发言：李明' },
+      { r: 'AXGroup', t: '聊天', k: [{ r: 'AXStaticText', v: '王芳正在发言' }] },
+    ] }
+    for (let t = 1_000_750; t <= 1_002_750; t += 400) s.emit({ t, app: bundleId, windows: [{ tree }] })
+    expect(s.hook.nameFor(s.m.id, 100, 1500)).toBe('李明')
+    s.stop(); s.transcribed(); await s.hook.finished(s.m.id)
+  })
+
+it.each(['feishu', 'tencent'] as const)('reads only unambiguous participant tiles in %s', kind => {
+  const tile = (id: string, v: string): AxNode => ({ r: 'AXStaticText', i: id, v })
+  const tree: AxNode = { r: 'AXWindow', k: [
+    { r: 'AXRow', k: [tile('displayName', '李明'), tile('micStatus', '正在发言')] },
+    { r: 'AXRow', k: [tile('displayName', '王芳'), tile('micStatus', '未静音')] },
+    { r: 'AXStaticText', v: 'not speaking' },
+  ] }
+  expect(readCall(kind, [{ tree }]).speaking).toEqual(['李明'])
+})

@@ -15,6 +15,7 @@ e2e/zz-*
 
 # built Mac helper
 app/resources/bin/
+app/resources/mac-accessibility/
 app/resources/vad/
 app/resources/dict/
 

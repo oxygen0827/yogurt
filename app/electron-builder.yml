@@ -23,6 +23,8 @@ extraResources:
   # speech to text; on Windows and Linux the Rust recorder, system helper and AI apps relay, and whisper-server
   - from: resources/bin
     to: bin
+  - from: resources/mac-accessibility
+    to: mac-accessibility
   # Silero VAD for whisper-server (native.sh or whisper-build.mjs fetch it, checked against its sha256)
   - from: resources/vad
     to: vad

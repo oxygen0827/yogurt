@@ -45,6 +45,7 @@ const ASK: Record<Exclude<PermissionKind, 'notifications'>, string> = { mic: 'mi
  */
 export function createPermissions(d: { helper: Helper; notifications(): Access | Promise<Access>; askNotifications(): Promise<Access>; open(url: string): void
   /** Accessibility was asked for once already (the Mac's prompt only shows the first time) */
+  accessibility?: (prompt: boolean) => boolean
   axAsked?: () => boolean; setAxAsked?: () => void
   /** the computer (default a Mac); Windows and Linux ask nothing (see offMac) */
   platform?: string
@@ -54,20 +55,28 @@ export function createPermissions(d: { helper: Helper; notifications(): Access |
   const status = async (): Promise<PermissionStatus> => {
     let raw: unknown = null
     try { raw = await d.helper(['permissions']) } catch { /* no helper: nothing known */ }
+    if (d.accessibility) raw = { ...(raw as object), accessibility: d.accessibility(false) }
     return { ...parseStatus(raw, { axAsked: d.axAsked?.() }), notifications: await d.notifications() }
   }
   return {
     status,
     async request(kind: PermissionKind): Promise<Access> {
       if (kind === 'notifications') return d.askNotifications().catch(() => 'unknown' as const)
-      try { await d.helper([ASK[kind]]) } catch { return 'unknown' }
+      try {
+        if (kind === 'accessibility' && d.accessibility) d.accessibility(true)
+        else await d.helper([ASK[kind]])
+      } catch { return 'unknown' }
       if (kind === 'accessibility') d.setAxAsked?.()
       return (await status())[kind]
     },
     async openSettings(kind: PermissionKind) {
       if (kind === 'accessibility') {
         // A saved "asked" flag may belong to a prior app identity; register this one before showing its pane.
-        try { await d.helper(['ax-auth']); d.setAxAsked?.() } catch { /* Settings is still useful if the helper fails. */ }
+        try {
+          if (d.accessibility) d.accessibility(true)
+          else await d.helper(['ax-auth'])
+          d.setAxAsked?.()
+        } catch { /* Settings is still useful if the helper fails. */ }
       }
       d.open(SETTINGS_URL[kind])
     },

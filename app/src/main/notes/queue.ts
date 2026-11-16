@@ -50,6 +50,7 @@ export function createQueue(o: {
   let idleTimer: NodeJS.Timeout | undefined
   let watch: NodeJS.Timeout | undefined
   /** a bigger Mac stopped for the backlog: waiting for it to fall under RESUME_MS */
+  let pausedForQuit = false
   let yielded = false
   /** the log has said the jobs wait for the first notes model */
   let saidWait = false
@@ -89,7 +90,7 @@ export function createQueue(o: {
 
   const pump = () => {
     watching()
-    if (running) return
+    if (running || pausedForQuit) return
     // a question first (someone is waiting on it), reading ahead only once nothing else can run
     let i = waiting.findIndex((e) => e.kind === 'chat' && allowed(e.kind))
     if (i === -1) i = waiting.findIndex((e) => e.kind !== 'readahead' && e.kind !== 'index' && e.kind !== 'folder' && allowed(e.kind))
@@ -122,6 +123,12 @@ export function createQueue(o: {
   }
 
   return {
+    // Stopped meetings remain in the store. Startup recovery writes them if quit completes.
+    setQuitting(value: boolean) {
+      pausedForQuit = value
+      if (value) running?.abort.abort()
+      else pump()
+    },
     /** meetingId: whose job it is, so deleting the meeting can drop it */
     enqueue(job: Job, kind: JobKind, meetingId?: string): Promise<void> {
       let resolve!: () => void, reject!: (e: unknown) => void

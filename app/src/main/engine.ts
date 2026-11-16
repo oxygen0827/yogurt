@@ -1,4 +1,5 @@
 import { utilityProcess, type UtilityProcess } from 'electron'
+import { EngineExitedError } from '../shared/engine-protocol'
 import type { EngineEvent, EngineMessage, EngineRequest } from '../shared/engine-protocol'
 import type { GpuProbe } from './hardware'
 
@@ -124,7 +125,7 @@ export class UtilityEngine implements Engine {
       if (starting) this.cpuOnly = true
       if (backToCard) this.cpuOnly = false
       if (!this.disposed) console.error(`notes engine stopped (code ${code})${starting ? '; starting it again without the graphics card' : backToCard ? ' without the graphics card too; the next try uses the card again' : ''}`)
-      for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(starting ? new GraphicsGaveUpError('The notes engine stopped while starting on the graphics card') : new Error('The notes engine stopped unexpectedly')) }
+      for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(starting ? new GraphicsGaveUpError('The notes engine stopped while starting on the graphics card') : this.disposed ? new Error('Yogurt is closing') : new EngineExitedError('The notes engine stopped unexpectedly')) }
       this.pending.clear()
       if (!this.disposed) for (const cb of this.exitListeners) cb()
     })
@@ -132,6 +133,7 @@ export class UtilityEngine implements Engine {
   }
 
   private call<T>(req: Req, onToken?: (t: string) => void): { id: number; done: Promise<T> } {
+    if (this.disposed) return { id: 0, done: Promise.reject(new Error('Yogurt is closing')) }
     const id = this.nextId++
     const model = req.type === 'load', load = model || req.type === 'probe'
     const done = new Promise<T>((resolve, reject) => this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, onToken, ...(load ? { load, model } : {}) }))

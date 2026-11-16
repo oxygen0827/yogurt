@@ -10,12 +10,28 @@ for name in yogurt-mac yogurt-audio yogurt-mcp; do
   src=native/$name/main.swift
   plist=native/$name/Info.plist
   out=resources/bin/$name
-  if [ -f "$out" ] && [ "$out" -nt "$src" ] && [ "$out" -nt "$plist" ]; then continue; fi
+  shared=
+  if [ "$name" = yogurt-mac ]; then shared=native/yogurt-mac/CallSample.swift; fi
+  if { [ -z "$shared" ] || [ "$out" -nt "$shared" ]; } && [ -f "$out" ] && [ "$out" -nt "$src" ] && [ "$out" -nt "$plist" ]; then continue; fi
   # the plist is embedded so the system's Calendar, Microphone and audio recording prompts have Yogurt's words.
   # 14.4: Core Audio process taps arrived in 14.2, their permission prompt in 14.4
-  xcrun swiftc -O -target arm64-apple-macos14.4 "$src" -o "$out" -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$plist"
+  xcrun swiftc -O -target arm64-apple-macos14.4 "$src" $shared -o "$out" -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$plist"
   echo "built $out"
 done
+
+# The AX reader lives in the process macOS authorizes (Yogurt.app).
+ax=native/yogurt-mac
+dest=resources/mac-accessibility
+mkdir -p "$dest"
+out="$dest/call-bridge.node"
+if [ ! -f "$out" ] || [ "$ax/CallSample.swift" -nt "$out" ] || [ "$ax/CallBridge.swift" -nt "$out" ] || [ "$ax/call-bridge.c" -nt "$out" ]; then
+  headers=$(node -p "require('node:path').dirname(require.resolve('node-api-headers/package.json')) + '/include'")
+  obj=$(mktemp)
+  trap 'rm -f "$obj"' EXIT
+  xcrun clang -arch arm64 -mmacosx-version-min=14.4 -I"$headers" -c "$ax/call-bridge.c" -o "$obj"
+  xcrun swiftc -O -target arm64-apple-macos14.4 -emit-library "$ax/CallSample.swift" "$ax/CallBridge.swift" -Xlinker "$obj" -Xlinker -undefined -Xlinker dynamic_lookup -o "$out"
+fi
+cp "$ax/call-worker.cjs" "$dest/"
 
 # whisper-server: whisper.cpp at a pinned commit, Metal on, the Metal shaders embedded so it is one file.
 # The clone and build live in native/.whisper-build (gitignored); only the finished program is copied out.

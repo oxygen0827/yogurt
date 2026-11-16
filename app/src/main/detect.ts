@@ -12,6 +12,8 @@ type CallApp = { id: string; name: string; browser?: boolean }
 // Apps that make calls. Browsers only count with a sign of a call (see decide).
 const MAC_APPS: CallApp[] = [
   { id: 'us.zoom.xos', name: 'Zoom' },
+  { id: 'com.tencent.meeting', name: '腾讯会议' },
+  { id: 'com.bytedance.macos.feishu', name: '飞书' },
   { id: 'com.microsoft.teams', name: 'Teams' },
   { id: 'com.microsoft.teams2', name: 'Teams' }, // the new Teams
   { id: 'com.cisco.webexmeetingsapp', name: 'Webex' },

@@ -18,6 +18,8 @@ export type Watch = (ids: string[], onLine: (l: WatchLine) => void) => { stop():
 /** the call apps that can be read, by the name meeting detection gives them (detect.ts), and the kind of window each
  * has. A Mac's ids are bundle ids; Linux's are program names or Flatpak app ids. */
 const APPS: Record<string, { kind: CallKind; ids: string[] }> = {
+  '腾讯会议': { kind: 'tencent', ids: ['com.tencent.meeting'] },
+  '飞书': { kind: 'feishu', ids: ['com.bytedance.macos.feishu'] },
   Zoom: { kind: 'zoom', ids: ['us.zoom.xos', 'zoom', 'us.zoom.Zoom'] },
   Teams: { kind: 'teams', ids: ['com.microsoft.teams2', 'com.microsoft.teams', 'teams-for-linux', 'com.github.IsmaelMartinez.teams_for_linux'] },
   Webex: { kind: 'webex', ids: ['Cisco-Systems.Spark', 'com.cisco.webexmeetingsapp'] },
@@ -40,7 +42,7 @@ const APP_LAG_MS = 750
 const LOGGED_CHANGES = 30
 
 type Sample = Omit<CallSample, 'ms'> & { t: number }
-type Session = { samples: Sample[]; priorLines: Set<number>; watch?: { stop(): void }; offset?: number; startedAt: number; pictured: boolean; errors: Set<string>; last: string; logged: number }
+type Session = { app: string | null; samples: Sample[]; priorLines: Set<number>; watch?: { stop(): void }; offset?: number; startedAt: number; pictured: boolean; errors: Set<string>; last: string; logged: number }
 
 export function hookCallNames(p: {
   store: Pick<Store, 'meeting' | 'segments' | 'setSegmentSpeakers' | 'updateMeeting'>
@@ -52,12 +54,13 @@ export function hookCallNames(p: {
   /** lines got their names after the meeting: the window reads them again */
   changed: (id: string) => void
   onStart: (fn: (m: RecordingStart) => void) => unknown
+  onChange?: (fn: (m: Meeting) => void) => unknown
   onStop: (fn: (m: Meeting) => void) => unknown
   onCapture: (fn: (c: { on(e: 'pcm', fn: (track: 'me' | 'them', ms: number, samples: Float32Array) => void): unknown }, meetingId: string) => void) => unknown
   log?: (msg: string) => void
   now?: () => number
 }) {
-  const log = p.log ?? ((s: string) => console.log(s))
+  const log = p.log ?? ((s: string) => console.info(s))
   const now = p.now ?? Date.now
   const sessions = new Map<string, Session>()
   const finals = new Map<string, Promise<void>>()
@@ -78,7 +81,7 @@ export function hookCallNames(p: {
     const kind = kindOf(l.app)
     if (!kind) return
     // the first reading of each meeting goes to the log in short, so a real call shows what its app gives
-    if (!s.pictured) { s.pictured = true; log(`call names: reading ${l.app} (${kind}), its window in short:\n${summarize(l.windows)}`) }
+    if (!s.pictured && kind !== 'feishu' && kind !== 'tencent') { s.pictured = true; log(`call names: reading ${l.app} (${kind}), its window in short:\n${summarize(l.windows)}`) }
     const r = readCall(kind, l.windows)
     s.samples.push({ t: l.t, ...r })
     const said = `${r.speaking.join(', ') || '-'} of ${r.participants.length}${r.me ? ', me known' : ''}`
@@ -86,12 +89,23 @@ export function hookCallNames(p: {
     s.last = said
   }
 
+  const startWatch = (id: string, s: Session) => {
+    const ids = watchIds(s.app)
+    if (!ids.length) { log(`call names: ${s.app} can't be read, the other side is Them`); return }
+    try { s.watch = p.watch(ids, l => onLine(id, s, l)) } catch (e) { console.error('call names: the watch did not start', e) }
+  }
   p.onStart((m) => {
-    const ids = watchIds(m.app)
-    const s: Session = { samples: [], priorLines: new Set(p.store.segments(m.id, { hidden: true }).map((line) => line.id)), startedAt: m.resume ? m.resume.startedAt - m.resume.startMs : m.startedAt, pictured: false, errors: new Set(), last: '', logged: 0 }
+    const s: Session = { app: m.app, samples: [], priorLines: new Set(p.store.segments(m.id, { hidden: true }).map((line) => line.id)), startedAt: m.resume ? m.resume.startedAt - m.resume.startMs : m.startedAt, pictured: false, errors: new Set(), last: '', logged: 0 }
     sessions.set(m.id, s)
-    if (!ids.length) { log(`call names: ${m.app} can't be read, the other side is Them`); return }
-    try { s.watch = p.watch(ids, (l) => onLine(m.id, s, l)) } catch (e) { console.error('call names: the watch did not start', e) }
+    startWatch(m.id, s)
+  })
+  p.onChange?.(m => {
+    const s = sessions.get(m.id)
+    if (!s || m.state !== 'recording' || !m.app || s.app === m.app) return
+    s.watch?.stop()
+    s.app = m.app
+    s.samples.push({ t: now(), speaking: [], participants: [], me: null, ok: false })
+    startWatch(m.id, s)
   })
 
   // meeting time 0 on the wall clock: the earliest any audio could have been heard (each frame arrives a little after it was said)
