@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Download for <a href="https://github.com/oxygen0827/yogurt/releases/download/fork-0.3.27.1/Yogurt-0.3.27-fork-speakers-notes-arm64.dmg">Mac (Apple Silicon, fork)</a> · <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-windows-x64.exe">Windows (upstream)</a> · <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-linux-x86_64.AppImage">Linux (upstream)</a>
+  Download for <a href="https://github.com/oxygen0827/yogurt/releases/download/fork-0.3.27.2/Yogurt-mac-arm64.dmg">Mac (Apple Silicon, fork)</a> · <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-windows-x64.exe">Windows (upstream)</a> · <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-linux-x86_64.AppImage">Linux (upstream)</a>
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
 
 ## 本机版安装与更新（Apple Silicon）
 
-页首的 Mac 下载链接指向已发布的 `fork-0.3.27.1`，包含腾讯会议和飞书支持。以下会议文件夹、云端模型和微信转写功能可从当前源码构建。
+页首提供 `fork-0.3.27.2` 的 Apple Silicon 安装包，包含腾讯会议与飞书支持、会议文件夹、云端模型和实验性的微信在线转写。此安装包使用 Yogurt Local 自签名证书，未经 Apple 公证。
 
 在自己的 Mac 上准备名为 `Yogurt Local` 的有效代码签名身份后，在仓库根目录运行 `npm run package:mac:local`。生成的安装包位于 `app/dist/local-signed/Yogurt-mac-arm64.dmg`。将 Yogurt 放入「应用程序」，在「系统设置 → 隐私与安全性 → 辅助功能」中添加并开启它，即可使用发言人标注。后续本机更新请复用同一证书和打包命令，以便 macOS 沿用授权。详见[构建说明](docs/building.md)。
 
