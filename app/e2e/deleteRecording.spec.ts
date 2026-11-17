@@ -1,3 +1,4 @@
+import { meetingDir } from './meetingDir'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -27,13 +28,13 @@ test('deleting audio asks first, preserves the note and search, and survives Tra
     await expect(page.getByTestId('recording-delete-cancel')).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(page.getByTestId('recording-delete-confirm')).toHaveCount(0)
-    expect(existsSync(join(userData, 'meetings', id, 'me.wav'))).toBe(true)
+    expect(existsSync(join(meetingDir(userData, id), 'me.wav'))).toBe(true)
     await page.getByTestId('recording-menu').click()
     await page.getByTestId('recording-delete').click()
     await page.getByTestId('recording-delete-yes').click()
     await expect(page.getByTestId('player')).toHaveCount(0)
     await expect(page.getByTestId('recording-delete-confirm')).toHaveCount(0)
-    expect(existsSync(join(userData, 'meetings', id, 'me.wav'))).toBe(false)
+    expect(existsSync(join(meetingDir(userData, id), 'me.wav'))).toBe(false)
     expect(await page.evaluate(id => window.yogurt.audio.tracks(id), id)).toEqual([])
     const toast = page.getByTestId('recording-deleted-toast')
     await expect(toast).toContainText('Recording deleted')
@@ -83,10 +84,10 @@ test('turning retention off deletes only after saved transcript and summary and 
     await page.getByTestId('note-stop').click()
     await page.getByRole('tab', { name: 'Transcript', exact: true }).click()
     await expect(page.getByTestId('player')).toBeVisible()
-    expect(existsSync(join(userData, 'meetings', id, 'me.wav'))).toBe(true)
+    expect(existsSync(join(meetingDir(userData, id), 'me.wav'))).toBe(true)
     await expect.poll(async () => (await page.evaluate(id => window.yogurt.notes.get(id), id)).status, { timeout: 40_000 }).toBe('done')
     await expect(page.getByTestId('player')).toHaveCount(0)
-    expect(existsSync(join(userData, 'meetings', id, 'me.wav'))).toBe(false)
+    expect(existsSync(join(meetingDir(userData, id), 'me.wav'))).toBe(false)
     expect((await page.evaluate(id => window.yogurt.transcript.get(id), id)).length).toBeGreaterThan(0)
   } finally { await app.close() }
 })
@@ -143,7 +144,7 @@ test('turning retention off leaves older recordings even when their summaries ar
     await page.evaluate(id => window.yogurt.notes.writeAgain(id), id)
     await expect.poll(async () => (await page.evaluate(id => window.yogurt.notes.get(id), id)).status).toBe('done')
     expect(await page.evaluate(id => window.yogurt.audio.tracks(id), id)).toEqual(['me', 'them'])
-    expect(existsSync(join(userData, 'meetings', id, 'me.wav'))).toBe(true)
+    expect(existsSync(join(meetingDir(userData, id), 'me.wav'))).toBe(true)
   } finally { await app.close() }
 })
 

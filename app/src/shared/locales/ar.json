@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "موقع تخزين الاجتماعات",
+  "Choose folder": "اختيار مجلد",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "عند التشغيل التالي، ينسخ Yogurt الملاحظات والتسجيلات إلى مجلد جديد باسم Yogurt Meetings ويحتفظ بالملفات الأصلية.",
   "Link event": "ربط حدث",
   "No events": "لا أحداث",
   "Go to {date}": "انتقل إلى {date}",

@@ -31,11 +31,12 @@ export type SetupDeps = {
   notesRetryMs?: number[]
   upgradePreference?: { load(): boolean; save(skipped: boolean): void }
   /** Windows and Linux: the speed check picks the speech model (a Mac never has it: turbo, as always) */
+  onlineSpeech?: () => boolean
   speed?: SpeedDeps
 }
 
 /** Where the models ended up, for the parts of the app that use them; llm once the first notes model is in (after ready) */
-export type Installed = { asr: string; llm?: string; recommendedLlm?: string; /** meaning search across meetings; word search works without it */ embed?: string }
+export type Installed = { asr?: string; llm?: string; recommendedLlm?: string; /** meaning search across meetings; word search works without it */ embed?: string }
 
 /** the first notes model keeps being tried after ready: a minute, five, then every ten (a download picks up where it stopped) */
 const NOTES_RETRY_MS = [60_000, 5 * 60_000, 10 * 60_000]
@@ -233,7 +234,9 @@ export class SetupController {
       if (speed && (known?.model === null || !candidates.length)) return this.set({ phase: 'error', fraction: 0, message: tooSlow(hw.os) })
       const keep = known && candidates.find((a) => a.id === known.model)
 
-      const waitFor: Item[] = [asrItem(speed ? keep ?? candidates[0] : asr.model)]
+      const speechItem = asrItem(speed ? keep ?? candidates[0] : asr.model)
+      const skipLocal = hw.os === 'darwin' && this.deps.onlineSpeech?.() && !isVerified(speechItem.dir, speechItem.fileName, this.sha(speechItem))
+      const waitFor: Item[] = skipLocal ? [] : [speechItem]
       const total = waitFor.reduce((n, i) => n + i.bytes, 0)
       // room for the first notes model too, so it never runs out of disk after ready
       await this.checkDisk([...waitFor, ...(hasUpgrade ? [] : [starterItem]), embedItem])
@@ -258,7 +261,7 @@ export class SetupController {
         if (!r.path) return this.set({ phase: 'error', fraction: this._state.fraction, message: tooSlow(hw.os) })
         asrPath = r.path
       }
-      while (!asrPath) {
+      while (!skipLocal && !asrPath) {
         try { asrPath = await get(asrItem(asr.model)) } catch (err) {
           if (!(err instanceof ChecksumError) || !asr.fallback) throw err
           tried.push(asr.model.id)

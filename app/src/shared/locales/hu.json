@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "Értekezletek tárolási helye",
+  "Choose folder": "Mappa kiválasztása",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "A következő indításkor a Yogurt új Yogurt Meetings mappába másolja a jegyzeteket és a felvételeket. Az eredeti fájlok megmaradnak.",
   "Link event": "Esemény csatolása",
   "No events": "Nincs esemény",
   "Go to {date}": "Ugrás erre a napra: {date}",

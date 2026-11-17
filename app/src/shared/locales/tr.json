@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "Toplantıların kayıt konumu",
+  "Choose folder": "Klasör seç",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "Yogurt bir sonraki açılışta notları ve kayıtları yeni bir Yogurt Meetings klasörüne kopyalar. Özgün dosyalar korunur.",
   "Link event": "Etkinlik bağla",
   "No events": "Etkinlik yok",
   "Go to {date}": "Şu tarihe git: {date}",

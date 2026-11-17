@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "会议数据存储位置",
+  "Choose folder": "选择文件夹",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "选择文件夹后，完全退出并重新打开 Yogurt。会议纪要、转录和录音将复制到新建的 Yogurt Meetings 子文件夹，旧位置保留一份副本。",
   "Link event": "关联活动",
   "No events": "没有活动",
   "Go to {date}": "转到{date}",

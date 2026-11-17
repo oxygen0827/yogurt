@@ -16,6 +16,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { basename, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { meetingFiles } from './meetingFiles'
+import { meetingStorage } from './meetingStorage'
+import { weTypeTranscriber } from './asr/wetype'
 import { isFake, userDataDir } from './paths'
 import { logToFile } from './log'
 import { loadSettings, localeOf, keepsRecording, recordingReminderOn, spokenSetting, stopsWhenCallEnds, updateSettings } from './settings'
@@ -47,9 +50,9 @@ import { deleteMeeting } from './deleteMeeting'
 import { emptyTrash, moveToTrash, purgeTrash } from './trash'
 import { isId, text } from './ipcArgs'
 import { hookMics } from './mics'
-import { activeCapture, audioHelperPath, hookCapture, joinParts, onCaptureStart, onRecordingEvent, prepareAppend, recordingFinished, recordingPaused, recordingSettled, rejoinInterrupted, setRecordingPaused, settleRecording, tell, type WarnCode } from './capture'
+import { recordingFilesBusy, activeCapture, audioHelperPath, hookCapture, joinParts, onCaptureStart, onRecordingEvent, prepareAppend, recordingFinished, recordingPaused, recordingSettled, rejoinInterrupted, setRecordingPaused, settleRecording, tell, type WarnCode } from './capture'
 import { createWidget } from './widget'
-import { hookTranscription, transcribeRecorded, onWhisperGpuOff, meetingLanguage, settleTranscription, speechLocaleFor, spokenChanged, transcriptionBacklogMs, stopTranscriptionServer, transcriptFinished, transcriptPartials } from './asr'
+import { transcriptionEngine, usesOnlineSpeech, hookTranscription, transcribeRecorded, onWhisperGpuOff, meetingLanguage, settleTranscription, speechLocaleFor, spokenChanged, transcriptionBacklogMs, stopTranscriptionServer, transcriptFinished, transcriptPartials } from './asr'
 import { hookCallNames, type Watch } from './callNames'
 import { helperWatch, macCallWatch, killAllWatches } from './callNames/watch'
 import { macFullName } from './user'
@@ -58,6 +61,8 @@ import { cleanJargon } from '../shared/jargon'
 import { setGenericTitles } from './titles'
 import { installAppMenu } from './appMenu'
 import { UtilityEngine } from './engine'
+import { cloudLlm } from './notes/cloud'
+import { cloudSettings } from './cloudSettings'
 import { createNotesModel } from './notes/model'
 import { FakeEngine } from './notes/fake'
 import { hookNotes } from './notes'
@@ -159,10 +164,17 @@ function createWindow() {
 /** First-run downloads: speech, speaker and notes models. Fake mode swaps in instant downloads and a fixed Mac. */
 /** Windows and Linux: what graphics the notes engine can use; null when it can't tell (or crashed checking: it then runs without them) */
 let probeGpu: () => Promise<GpuProbe | null> = async () => null
+function weTypeHelper(): string {
+  const local = join(userDataDir(), 'helpers', 'vk-test')
+  if (existsSync(local)) return local
+  return join(app.isPackaged ? process.resourcesPath : join(__dirname, '../../resources'), 'wetype', 'vk-test')
+}
+
 function createSetup(): SetupController {
   const modelsDir = join(userDataDir(), 'models')
   return new SetupController({
     modelsDir,
+    onlineSpeech: () => !!loadSettings(join(userDataDir(), 'settings.json')).weTypeSince && existsSync(weTypeHelper()),
     upgradePreference: {
       load: () => loadSettings(join(userDataDir(), 'settings.json')).notesUpgradeSkipped === true,
       save: (skipped) => { updateSettings(join(userDataDir(), 'settings.json'), { notesUpgradeSkipped: skipped }) },
@@ -278,6 +290,8 @@ const fakeCallWatch: Watch = (ids, onLine) => {
 const macName = () => (isFake() ? process.env.YOGURT_FAKE_FULL_NAME ?? 'Sam Rivera' : macFullName())
 
 /** fake mode's hooks reach the store and the notes through these */
+const storage = meetingStorage(userDataDir())
+let libraryDir = userDataDir()
 let storeRef: Store | undefined
 let indexerRef: { schedule(): Promise<unknown> } | undefined
 
@@ -434,7 +448,7 @@ function startDetection() {
           const track = i % 7 < 3 ? 'me' as const : 'them' as const
           return { meetingId: m.id, track, startMs: i * 500, endMs: i * 500 + 400, text: `Line ${i + 1} of the long meeting.`, speaker: track === 'them' ? (i % 14 < 7 ? 'Ann Lee' : 'Bo Park') : 'me' }
         }))
-        const dir = join(userDataDir(), 'meetings', m.id)
+        const dir = join(libraryDir, 'meetings', m.id)
         mkdirSync(dir, { recursive: true })
         for (const t of ['me', 'them']) writeFileSync(join(dir, `${t}.wav`), wavOf([new Float32Array(Math.ceil(n * 0.5 * 4000))], 4000))
         return m.id
@@ -454,6 +468,7 @@ function startDetection() {
 }
 
 app.whenReady().then(() => {
+  if (!app.hasSingleInstanceLock()) return
   // Local Electron launches need the same Dock icon as the packaged application.
   if (!app.isPackaged && process.platform === 'darwin') app.dock?.setIcon(join(__dirname, '../../build/icon.png'))
   const settings = loadSettings(join(userDataDir(), 'settings.json'))
@@ -500,7 +515,26 @@ app.whenReady().then(() => {
   ipcMain.handle('setup:retry', () => setup.retry())
   ipcMain.handle('setup:skip-upgrade', () => setup.skipUpgrade())
   ipcMain.handle('setup:download-upgrade', () => setup.downloadUpgrade())
-  const store = openStore(join(userDataDir(), 'yogurt.db'))
+  let store: Store
+  try {
+    libraryDir = storage.start(err => dialog.showErrorBox(t('Meeting storage location'), String(err)))
+    store = openStore(join(libraryDir, 'yogurt.db'))
+  } catch (err) {
+    dialog.showErrorBox(t('Meeting storage location'), String(err))
+    app.quit()
+    return
+  }
+  ipcMain.handle('storage:status', () => storage.read())
+  ipcMain.handle('storage:open', () => shell.openPath(join(libraryDir, 'meetings')))
+  ipcMain.handle('storage:choose', async () => {
+    const options = { properties: ['openDirectory', 'createDirectory'] as Array<'openDirectory' | 'createDirectory'> }
+    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+    if (!result.canceled && result.filePaths[0]) storage.choose(result.filePaths[0])
+    return storage.read()
+  })
+  ipcMain.handle('storage:cancel', () => { storage.cancel(); return storage.read() })
+  const files = meetingFiles(join(libraryDir, 'meetings'), store)
+  const meetingDir = files.dirOf
   storeRef = store
   store.markInterrupted()
   initMeetings(store)
@@ -520,7 +554,21 @@ app.whenReady().then(() => {
   })
   // Windows and Linux: whisper left the graphics card in a meeting, so the speed check (timed with it) runs again next start
   onWhisperGpuOff(() => speedStore(speedFile()).forget())
-  hookTranscription({ store, modelPath: () => setup.installed()?.asr, send: (seg) => {
+  let onlineConsent = new AbortController()
+  app.on('will-quit', () => onlineConsent.abort())
+  ipcMain.handle('wetype:get', () => ({ enabled: !!loadSettings(settingsFile).weTypeSince, installed: existsSync(weTypeHelper()) }))
+  ipcMain.handle('wetype:set', (_e, on: unknown) => {
+    if (typeof on !== 'boolean' || (on && !existsSync(weTypeHelper()))) return false
+    if (on === !!loadSettings(settingsFile).weTypeSince) return true
+    updateSettings(settingsFile, { weTypeSince: on ? Date.now() : undefined })
+    onlineConsent.abort()
+    onlineConsent = new AbortController()
+    return true
+  })
+  hookTranscription({ store, engineChanged: () => win?.webContents.send('meetings:changed'), onlineForNewMeeting: startedAt => {
+    const since = loadSettings(settingsFile).weTypeSince
+    return since && startedAt >= since && existsSync(weTypeHelper()) ? weTypeTranscriber(weTypeHelper(), onlineConsent.signal) : undefined
+  }, modelPath: () => setup.installed()?.asr, send: (seg) => {
     const order = seg.track === 'them' && seg.speaker ? store.speakerOrder(seg.meetingId, seg.speaker) : []
     const colored = { ...seg, speakerColor: speakerColor(seg.track, seg.speaker, order) }
     win?.webContents.send('transcript:segment', colored); sendWidgetTranscript('transcript:segment', colored)
@@ -557,7 +605,7 @@ app.whenReady().then(() => {
     notes.refresh(id)
   })
   // each meeting's audio lives in its own folder; a crash keeps what was recorded up to the last 5 s flush
-  hookCapture({ dirOf: (id) => join(userDataDir(), 'meetings', id), onStart: onMeetingStart, onStop: onMeetingStop, speech: (id) => speechLocaleFor(id),
+  hookCapture({ dirOf: meetingDir, onStart: onMeetingStart, onStop: onMeetingStop, speech: (id) => speechLocaleFor(id),
     mic: () => loadSettings(settingsFile).mic ?? null,
     // recording that can't go on ends the meeting, with the notes kept
     stopMeeting: (id) => { stopMeeting(id) } })
@@ -571,11 +619,18 @@ app.whenReady().then(() => {
   }, (e) => { console.warn("couldn't check the graphics", e); return null })
   // fake mode: the fixed Mac (a bigger one) unless a test asks for a 16 GB one
   const smallMac = isFake() ? process.env.YOGURT_FAKE_SMALL_MAC === '1' : isSmallMac(os.totalmem())
-  const model = createNotesModel({ engine, modelPath: () => setup.notesPath(), onLoaded: path => setup.notesModelLoaded(path) })
+  const localModel = createNotesModel({ engine, modelPath: () => setup.notesPath(), onLoaded: path => setup.notesModelLoaded(path) })
   // first run: the notes model lands after recording already works; jobs wait in the queue for it
   // the embedding model (meaning search across meetings) runs in the same worker and is let go with the notes model
+  const cloud = cloudSettings(settingsFile, () => { queue.modelArrived(); conversations.refresh() })
+  const model = { ...localModel,
+    llm: async (signal?: AbortSignal) => cloud.active() ? cloudLlm(cloud.config(), signal) : localModel.llm(signal),
+    needsLoad: () => !cloud.active() && localModel.needsLoad(),
+  }
+  const modelAvailable = () => cloud.active() || !!setup.notesPath()
   const embedder = createEmbedder({ engine, modelPath: () => setup.installed()?.embed, id: bundledCatalog.embedding.id, dims: bundledCatalog.embedding.dims })
-  const queue = createQueue({ recording: () => !!activeMeeting(), smallMac, backlogMs: transcriptionBacklogMs, onIdle: () => { void model.unload().catch(e => console.error('letting the notes model go failed', e)); void embedder.unload() }, modelReady: () => !!setup.notesPath() })
+  const canReadOnline = (id: string) => !isFake() && process.platform === 'darwin' && os.totalmem() >= 16 * 2 ** 30 && usesOnlineSpeech(id)
+  const queue = createQueue({ allowLiveReadAhead: () => { const m = activeMeeting(); return !!m && canReadOnline(m.id) }, recording: () => !!activeMeeting(), smallMac, backlogMs: transcriptionBacklogMs, onIdle: () => { void model.unload().catch(e => console.error('letting the notes model go failed', e)); void embedder.unload() }, modelReady: modelAvailable })
   ipcMain.handle('setup:remove-upgrade', () => setup.removeUpgrade(remove => queue.enqueue(async () => {
     await model.unload()
     remove()
@@ -590,13 +645,13 @@ app.whenReady().then(() => {
   onMeetingStop(() => queue.recordingChanged())
   // the meeting is read into the model as it happens, so its notes start within seconds of stopping
   const readAhead = hookReadAhead({
-    store, queue, model, live: readsAhead, backlogMs: transcriptionBacklogMs, language: meetingLanguage,
+    store, queue, model, live: id => !cloud.active() && (readsAhead || canReadOnline(id)), backlogMs: transcriptionBacklogMs, language: meetingLanguage,
     transcribed: async (id) => { await recordingFinished(id); await transcriptFinished(id) }, onStart: onMeetingStart, onStop: onMeetingStop,
   })
   const folderSuggestions = createFolderSuggestions({ store, queue, model, changed: () => win?.webContents.send('folders:changed') })
   let resumingId: string | null = null
   const removeRecording = (id: string, automatic = false) => deleteRecording(id, {
-    store, dirOf: id => join(userDataDir(), 'meetings', id),
+    store, dirOf: meetingDir,
     busy: id => resumingId === id || stopSavePending(id),
     settle: async id => { await rejoined; await recordingFinished(id); await transcriptFinished(id) },
     removed: id => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send('audio:deleted', id) },
@@ -630,7 +685,7 @@ app.whenReady().then(() => {
       clearTimeout(timer)
       await rejoined
       if (finishing || !store.meeting(id)) return { error: 'failed' }
-      const append = await prepareAppend(join(userDataDir(), 'meetings', id))
+      const append = await prepareAppend(meetingDir(id))
       // Deleted audio must not restart a retained transcript at zero.
       if (!append.startMs) append.startMs = store.segments(id, { hidden: true }).reduce((end, s) => Math.max(end, s.endMs), Math.max(append.startMs, store.meeting(id)?.durationMs ?? 0))
       // Another explicit start may have happened while the old files were settling.
@@ -653,9 +708,9 @@ app.whenReady().then(() => {
       win?.webContents.send('conversations:changed', v)
       if (v.chips.length === 1 && v.chips[0].kind === 'meeting') win?.webContents.send('chat:changed', { ...v, meetingId: v.chips[0].id })
     }, sendList: (l) => win?.webContents.send('conversations:list', l),
-    waitsForMeeting: () => smallMac && !!activeMeeting(), waitsForModel: () => !setup.notesPath(),
+    waitsForMeeting: () => smallMac && !!activeMeeting(), waitsForModel: () => !modelAvailable(),
     // a meeting read in ahead during a recording only where reading ahead is allowed (32 GB and up; the fake Mac is big)
-    warmAllowed: () => !activeMeeting() || (isFake() ? !smallMac : readAheadAllowed(os.totalmem())),
+    warmAllowed: () => !cloud.active() && (!activeMeeting() || (isFake() ? !smallMac : readAheadAllowed(os.totalmem()))),
   })
   const validChips = (value: unknown): value is ContextChip[] => Array.isArray(value) && value.length <= 40 && value.every(c =>
     c && (c.kind === 'meeting' || c.kind === 'folder') && isId(c.id)) && new Set(value.map(c => `${c.kind}:${c.id}`)).size === value.length
@@ -697,7 +752,6 @@ app.whenReady().then(() => {
   ipcMain.handle('conversations:delete', (_e, id: unknown) => { if (isId(id)) conversations.remove(id) })
   // a meeting's two tracks, once recording has finished them (fake mode writes wav stand-ins)
   const audioKinds: AudioExt[] = isFake() && process.env.YOGURT_FAKE_AUDIO_M4A === '1' ? ['m4a'] : audioExts(process.platform, isFake())
-  const meetingDir = (id: string) => join(userDataDir(), 'meetings', id)
   const finishedMeeting = (id: string) => { const m = store.meeting(id); return !!m && m.state !== 'recording' }
   protocol.handle(AUDIO_SCHEME, createAudioHandler({ dirOf: meetingDir, known: finishedMeeting, ready: async (id) => { await rejoined; await recordingSettled(id); if (isFake()) await waitForFakeAudioMetadata() }, exts: audioKinds }))
   ipcMain.handle('audio:delete', (_e, id: unknown) => isId(id) ? removeRecording(id) : 'missing')
@@ -712,7 +766,7 @@ app.whenReady().then(() => {
   hookShare({ store, window: () => win })
   hookFolders({ store, changed: () => { win?.webContents.send('folders:changed'); folderSuggestions.refresh() } })
   // every meeting to one file and back; what an import adds shows up on home
-  hookBackup({ db: store.db, meetingsDir: join(userDataDir(), 'meetings'), window: () => win, recording: () => !!activeMeeting() || !!resumingId,
+  const copyingBackup = hookBackup({ db: store.db, dirOf: meetingDir, meetingsDir: join(libraryDir, 'meetings'), window: () => win, recording: () => !!activeMeeting() || !!resumingId,
     changed: () => { win?.webContents.send('meetings:changed'); win?.webContents.send('conversations:list', conversations.list()); void indexer.refresh(); folderSuggestions.refresh() },
     beforeExport: () => { notes.retryDrafts(); return notes.pendingDraftId() } })
   void hookMcp({
@@ -738,11 +792,11 @@ app.whenReady().then(() => {
   ipcMain.handle('notes:write-again', (_e, id: unknown) => { if (known(id)) void notes.writeAgain(id) })
   app.on('will-quit', () => engine.dispose())
   // an earlier quit or crash may have left parts unjoined: try again now
-  const rejoined = rejoinInterrupted(join(userDataDir(), 'meetings'), async dir => {
-    const id = basename(dir), meeting = store.meeting(id)
+  const rejoined = rejoinInterrupted(join(libraryDir, 'meetings'), async dir => {
+    const id = files.idOf(dir), meeting = store.meeting(id)
     if (!meeting || meeting.trashedAt != null || activeMeeting() || resumingId) return
     await joinParts(dir)
-  })
+  }, files.idOf)
   // meetings whose notes a quit or crash cut short: caught up once the models are ready, one at a time
   let caughtUp = false
   // and meetings not in the library yet (or changed since) are indexed, once nothing else is waiting
@@ -853,7 +907,7 @@ app.whenReady().then(() => {
   ipcMain.handle('meetings:get', (_e, id: unknown) => {
     const m = isId(id) ? getMeeting(id) : undefined
     if (m) store.noteOpened(m.id)
-    return m && { ...m, ...(recordingPaused(m.id) ? { paused: true } : {}) }
+    return m && { ...m, ...(m.state === 'recording' ? { transcriptionEngine: transcriptionEngine(m.id) } : {}), ...(recordingPaused(m.id) ? { paused: true } : {}) }
   })
   // the person's own title for a note
   ipcMain.handle('meetings:rename', (_e, id: unknown, title: unknown) => { if (isId(id) && typeof title === 'string') renameMeeting(id, title) })
@@ -909,7 +963,7 @@ app.whenReady().then(() => {
   }))
   ipcMain.handle('meetings:restore', (_e, id: unknown) => {
     if (!isId(id) || store.meeting(id)?.trashedAt == null) return
-    store.restoreMeeting(id); indexer.restored(id)
+    files.restore(id); store.restoreMeeting(id); indexer.restored(id)
     win?.webContents.send('meetings:changed'); win?.webContents.send('folders:changed')
   })
   ipcMain.handle('meetings:trashed', () => store.trashed())
@@ -917,6 +971,20 @@ app.whenReady().then(() => {
   // a meeting in the Trash for 30 days goes for good: at launch, and twice a day for a Yogurt that stays open
   const purge = () => void purgeTrash({ store, remove: removeForGood })
   purge(); setInterval(purge, 12 * 60 * 60 * 1000).unref()
+  const flushFiles = () => {
+    if (copyingBackup()) return
+    try {
+      files.flush(id => recordingFilesBusy(id) || resumingId === id || backfilling || !!stopSavePending(id), id => {
+        if (store.trashMeeting(id)) {
+          indexer.forget(id)
+          win?.webContents.send('meetings:changed'); win?.webContents.send('folders:changed')
+        }
+      })
+    } catch (err) { console.warn('Meeting folders unavailable', err) }
+  }
+  flushFiles()
+  const filesTimer = setInterval(flushFiles, 3000)
+  app.on('will-quit', () => { clearInterval(filesTimer); flushFiles() })
   const tidyPrepared = () => {
     try {
       // Keep on-screen drafts and any on-disk capture, even if its state was never saved.

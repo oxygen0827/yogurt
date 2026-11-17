@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "ตำแหน่งจัดเก็บข้อมูลการประชุม",
+  "Choose folder": "เลือกโฟลเดอร์",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "เมื่อเปิด Yogurt ครั้งถัดไป แอปจะคัดลอกบันทึกและเสียงที่อัดไว้ไปยังโฟลเดอร์ใหม่ชื่อ Yogurt Meetings และเก็บไฟล์ต้นฉบับไว้",
   "Link event": "เชื่อมโยงกิจกรรม",
   "No events": "ไม่มีกิจกรรม",
   "Go to {date}": "ไปที่ {date}",

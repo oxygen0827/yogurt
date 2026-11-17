@@ -26,6 +26,28 @@
   Made by <a href="https://frigade.com?utm_source=github&utm_medium=readme&utm_campaign=yogurt">Frigade</a>.
 </p>
 
+## 本机版安装与更新（Apple Silicon）
+
+页首的 Mac 下载链接指向已发布的 `fork-0.3.27.1`，包含腾讯会议和飞书支持。以下会议文件夹、云端模型和微信转写功能可从当前源码构建。
+
+在自己的 Mac 上准备名为 `Yogurt Local` 的有效代码签名身份后，在仓库根目录运行 `npm run package:mac:local`。生成的安装包位于 `app/dist/local-signed/Yogurt-mac-arm64.dmg`。将 Yogurt 放入「应用程序」，在「系统设置 → 隐私与安全性 → 辅助功能」中添加并开启它，即可使用发言人标注。后续本机更新请复用同一证书和打包命令，以便 macOS 沿用授权。详见[构建说明](docs/building.md)。
+
+## 会议文件与云端纪要
+
+在「设置 → 会议数据存储位置」可以更改存储位置，也可以直接打开会议目录。每场结束的会议按「日期 会议名称」建文件夹，包含保留下来的音轨、`转写.md` 和 `会议纪要.md`。在 Finder 移走整场会议的文件夹会把这场会议移入 Yogurt 的废纸篓。单独删除 Markdown 只删除该文件，应用仍可搜索数据库中的文字。关闭会后保留录音后，符合条件的会议完成转写并保存纪要时会清理音频。手动导出 Markdown 不触发清理。
+
+在「设置 → 纪要与问答模型」启用云端，填写 API Key 并保存。默认地址为 `https://api.deepseek.com`，模型为 `deepseek-flash`。也可使用兼容 OpenAI Chat Completions 的流式接口。生成纪要和问答所需的文字会发送给该服务，会议检索仍在本机执行。API Key 加密保存在应用配置中。
+
+## 微信输入法在线转写（macOS，实验功能）
+
+当前源码支持用微信输入法服务转写新会议的双方音频。开启前使用 Yogurt 原有的本地识别；开启后的语音片段会发送到腾讯，会议库保存在本机，纪要使用设置中选择的模型。这个功能使用 [VoiceKey](https://github.com/J3n5en/voicekey) 的非官方 WeType 协议，服务变更可能影响可用性。
+
+1. 如果安装包已随附组件，可直接进入下一步。从源码构建时，在 Mac 上安装 Git、Rust 和 CMake，运行 `sh app/scripts/install-wetype.sh` 编译并安装固定版本的识别组件。打自用安装包时可添加 `--bundle` 参数。
+2. 在此源码构建的 Yogurt 中，打开「设置 → 语言 → 微信输入法在线转写」。初次设置也可在模型准备界面选择，选好后完全退出并重新打开。
+3. 开始一场新会议，录音界面会显示「微信在线转写」「本地 Whisper」或「转写暂不可用」。语音停顿或分段后会出现定稿。已有会议的补转写仍在本地执行。关闭选项即可让新会议恢复使用本地模型；如果此前跳过了本地语音模型，重启后会下载它。
+
+在 16 GB 及以上的 Apple Silicon Mac 上，微信在线转写期间，本地纪要模型可以分批预读已定稿的文字。积压时优先转写，会后生成完整纪要。
+
 ## 腾讯会议与飞书会议（macOS）
 
 此 fork 为腾讯会议和飞书的 Mac 桌面客户端增加了录制提醒和发言人标注。
@@ -37,7 +59,7 @@
 
 - **Live transcripts.** Yogurt records calls and turns speech into text as you talk.
 - **Meeting summaries.** Yogurt writes up the conversation and any notes you add.
-- **Private by default.** Your audio, transcripts and AI processing stay on your computer.
+- **Private by default.** In local mode your audio, transcripts and AI processing stay on your computer. Optional WeType transcription sends speech to Tencent. Enabling cloud notes and Ask sends the text needed for each request to your configured endpoint.
 - **Free and open source.** You can use Yogurt without an account.
 - **Who said what.** On Mac, Yogurt can label remote speakers when Zoom, Teams, Meet, Tencent Meeting or Feishu shows who is speaking.
 - **Languages.** Multi-language mode transcribes 99 languages.
@@ -56,9 +78,9 @@ https://github.com/user-attachments/assets/da16b894-beb1-491a-89e1-fd10666dc9b8
 
 1. **Record.** Start recording your microphone and call audio; you can add your own notes.
 2. **Transcribe.** Yogurt uses whisper.cpp and, on supported Macs, Apple SpeechAnalyzer.
-3. **Summarize and ask.** A local open-weight model runs through llama.cpp.
+3. **Summarize and ask.** Use a local model through llama.cpp or configure a compatible cloud endpoint in Settings.
 
-Meeting data stays local; Yogurt goes online for model downloads and update checks.
+Meeting files are saved locally. Optional online transcription and cloud text generation send their inputs to the selected service.
 
 <details><summary>Where your meetings, recordings, settings and models are stored</summary>
 
@@ -114,7 +136,7 @@ Meeting data stays local; Yogurt goes online for model downloads and update chec
 
 <br>
 
-> Yes. After a one-time download of the AI models, transcription and summaries run locally on your computer.
+> Yes in local mode. After downloading the models, transcription and summaries run on your computer. WeType and remote model endpoints require an internet connection.
 
 </details>
 
@@ -146,7 +168,7 @@ Meeting data stays local; Yogurt goes online for model downloads and update chec
 
 <br>
 
-> Transcription uses Whisper through whisper.cpp, with large-v3-turbo or a smaller model depending on your computer. On supported Macs, Apple SpeechAnalyzer supplies live words while Whisper produces the saved transcript. Summaries and answers use a local open-weight model from the Gemma 4, gpt-oss or Qwen3 families, chosen for your hardware and run through llama.cpp. The app uses Electron and needs no account.
+> Transcription uses Whisper through whisper.cpp, with large-v3-turbo or a smaller model depending on your computer. On supported Macs, Apple SpeechAnalyzer supplies live words while Whisper produces the saved transcript. By default, summaries and answers use a local open-weight model from the Gemma 4, gpt-oss or Qwen3 families, chosen for your hardware and run through llama.cpp. The app uses Electron and needs no account.
 
 </details>
 

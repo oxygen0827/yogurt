@@ -14,6 +14,7 @@ e2e/zz-*
 
 
 # built Mac helper
+app/resources/wetype/
 app/resources/bin/
 app/resources/mac-accessibility/
 app/resources/vad/

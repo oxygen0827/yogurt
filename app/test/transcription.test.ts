@@ -43,7 +43,7 @@ const disposers: Array<() => void> = []
 afterEach(async () => { disposers.splice(0).forEach((d) => d()); await settleTranscription(2000); stopTranscriptionServer() })
 
 /** both hooks over one shared start/stop fan-out, registered in the order asked for */
-function rig(order: 'capture-first' | 'transcription-first', t: { transcriber?: (c: Chunk, heard?: (language: string, chars: number) => void) => Promise<Line[]> | Line[]; modelPath?: () => string | undefined; refresh?: (id: string) => void; holdMs?: number } = {}) {
+function rig(order: 'capture-first' | 'transcription-first', t: { onlineForNewMeeting?: Parameters<typeof hookTranscription>[0]['onlineForNewMeeting']; transcriber?: (c: Chunk, heard?: (language: string, chars: number) => void) => Promise<Line[]> | Line[]; modelPath?: () => string | undefined; refresh?: (id: string) => void; holdMs?: number } = {}) {
   const starts: Array<(m: Meeting) => void> = [], stops: Array<(m: Meeting) => void> = []
   const onStart = (fn: (m: Meeting) => void) => { starts.push(fn); return () => {} }
   const onStop = (fn: (m: Meeting) => void) => { stops.push(fn); return () => {} }
@@ -51,7 +51,7 @@ function rig(order: 'capture-first' | 'transcription-first', t: { transcriber?: 
   const sent: string[] = [], warns: string[] = []
   const hookT = () => disposers.push(hookTranscription({
     store, modelPath: t.modelPath ?? (() => '/model.bin'), send: (s) => sent.push(`${s.track}:${s.text}`), warn: (c) => warns.push(c),
-    refresh: t.refresh, holdMs: t.holdMs, transcriber: 'transcriber' in t ? t.transcriber : async (c) => says(c), onStart, onStop, pidFile: undefined,
+    onlineForNewMeeting: t.onlineForNewMeeting, refresh: t.refresh, holdMs: t.holdMs, transcriber: 'transcriber' in t ? t.transcriber : async (c) => says(c), onStart, onStop, pidFile: undefined,
   }))
   const hookC = () => hookCapture({
     dirOf: (id) => `/m/${id}`, onStart, onStop, stopMeeting: (id) => stops.forEach((f) => f({ id } as Meeting)),
@@ -68,6 +68,32 @@ function rig(order: 'capture-first' | 'transcription-first', t: { transcriber?: 
 }
 
 describe('live transcription of a meeting', () => {
+  it('recovers the failed online chunk locally and continues the meeting locally', async () => {
+    const online = vi.fn(async () => { throw new Error('network offline') })
+    const r = rig('transcription-first', { onlineForNewMeeting: () => online })
+    const m = meeting()
+    r.begin(m)
+    r.procs[0].say('them', 500)
+    r.procs[0].say('them', 3500)
+    await r.stop(m)
+    expect(online).toHaveBeenCalledOnce()
+    expect(store.segments(m.id)).toHaveLength(2)
+    expect(store.meeting(m.id)?.transcriptionPending).not.toBe(true)
+  })
+
+  it('saves both online tracks without starting a local speech model', async () => {
+    const localModel = vi.fn(() => undefined)
+    const online = vi.fn(async (c: Chunk) => [{ ...says(c)[0], text: c.track === 'me' ? '我先说' : '现在开始' }])
+    const r = rig('transcription-first', { modelPath: localModel, onlineForNewMeeting: () => online })
+    const m = meeting()
+    r.begin(m)
+    r.procs[0].say('me', 500)
+    r.procs[0].say('them', 3500)
+    await r.stop(m)
+    expect(store.segments(m.id).map(s => s.text)).toEqual(['我先说', '现在开始'])
+    expect(localModel).not.toHaveBeenCalled()
+  })
+
   it('only clears pending audio after transcription saves, and retains older unfinished sessions', async () => {
     const r = rig('transcription-first'), m = meeting()
     r.begin(m)
@@ -350,6 +376,14 @@ describe('a meeting recorded before the speech model was in (#30)', () => {
       at = sec + 2
     }
   }
+  it('reports unsuccessful local recovery and never sends the saved recording online', async () => {
+    const online = vi.fn()
+    rig('transcription-first', { onlineForNewMeeting: online, transcriber: async () => { throw new Error('failed') } })
+    const m = meeting()
+    expect(await transcribeRecorded(m.id, { them: track(1) })).toBe(false)
+    expect(store.meeting(m.id)?.transcriptionPending).toBe(true)
+    expect(online).not.toHaveBeenCalled()
+  })
   it('once the model is in, is transcribed from its saved recording and no longer waits', async () => {
     rig('transcription-first')
     // as a meeting recorded with no speech model ends up: stopped, waiting, not one line

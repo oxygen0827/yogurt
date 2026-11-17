@@ -15,6 +15,8 @@ import { t } from '../../../shared/i18n'
  * with a picture of what it does. Every one can be put off ("Not now"); home's Finish setup and Settings have them
  * again. Then the download, if it isn't done yet. The models keep downloading in the background the whole time.
  */
+import { WeTypeSetting } from '../components/WeTypeSetting'
+
 export function Onboarding({ state, plan, onDone }: { state: SetupState; plan: OnboardingPlan; onDone(): void }) {
   const screens = useMemo(() => screensOf(plan.steps), [plan])
   const [stage, setStage] = useState<'intro' | 'steps' | 'progress'>(plan.intro ? 'intro' : screens.length ? 'steps' : 'progress')
@@ -189,6 +191,7 @@ function Ready({ state }: { state: SetupState }) {
   const c = screenCopy('ready')
   return (
     <Layout
+      note={window.yogurt.platform === 'darwin' && <WeTypeSetting />}
       testId="setup-ready" motionKey={error ? 'error' : 'ready'} art={<ReadyArt fraction={state.fraction} paused={error} onShown={setShown} />}
       title={error ? t("Couldn't finish setting up") : c.title} text={error ? state.message ?? '' : c.text} textTestId={error ? 'setup-error' : undefined}
       actions={error ? (

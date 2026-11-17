@@ -9,7 +9,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 import { useScrollMemory } from '../useScrollMemory'
 import { AudioLines, Lock, RotateCcw, Trash2, TextAlignStart, TriangleAlert } from 'lucide-react'
 import type { MeetingView, NoteSaveResult, NoteSide, NoteView, WidgetView } from '../../../shared/types'
-import { t } from '../../../shared/i18n'
+import { language, t } from '../../../shared/i18n'
 import { osWords } from '../keys'
 import { Modal, ModalClose } from '../components/Modal'
 import { NotesModelWait } from '../components/NotesModelWait'
@@ -333,6 +333,12 @@ export function Note({ id, onTitleChange, at, folderSuggestion, onSource, onResu
                   <span className="note-recording-status">
                     <LevelBars height={14} bars={3} testId="note-wave" paused={!!m.paused} className="text-muted" />
                     <RecordingTime view={recorder} />
+                    {m.transcriptionEngine && <span role="status" data-testid="transcription-engine" className="text-xs font-medium text-ink">
+                      {(language().startsWith('zh')
+                        ? { wetype: '微信在线转写', whisper: '本地 Whisper', unavailable: '转写暂不可用' }
+                        : { wetype: 'WeType online', whisper: 'Local Whisper', unavailable: 'Transcription unavailable' }
+                      )[m.transcriptionEngine]}
+                    </span>}
                   </span>
                   <button data-testid="note-pause" disabled={pausing} onClick={() => { void togglePause() }}
                     aria-label={m.paused ? t('Resume recording') : t('Pause recording')} title={m.paused ? t('Resume recording') : t('Pause recording')} className="note-record-action note-pause-action">

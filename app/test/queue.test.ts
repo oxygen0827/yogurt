@@ -4,6 +4,13 @@ import { createQueue, isSmallMac } from '../src/main/notes/queue'
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
 describe('notes queue', () => {
+  it('allows local read-ahead on a small Mac during online transcription', async () => {
+    const q = createQueue({ recording: () => true, smallMac: true, allowLiveReadAhead: () => true })
+    const job = vi.fn(async () => {})
+    await q.enqueue(job, 'readahead', 'meeting')
+    expect(job).toHaveBeenCalledOnce()
+  })
+
   it('cancelling obsolete summary work waits for the running job and allows future jobs for the same note', async () => {
     const q = createQueue({ recording: () => false, smallMac: false })
     let release!: () => void, aborted = false

@@ -1,3 +1,5 @@
+import { CloudModelSetting } from '../components/CloudModelSetting'
+import { WeTypeSetting } from '../components/WeTypeSetting'
 import { LoadingContent } from '../components/LoadingContent'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, Copy, Download, ExternalLink, Globe, Lock, Upload } from 'lucide-react'
@@ -140,9 +142,12 @@ export function Settings({ revision = 0, focus }: { revision?: number; focus?: s
           <div data-testid="settings-language" className="settings-group">
             <AppLanguage />
             <SpokenSetting />
+            {window.yogurt.platform === 'darwin' && <WeTypeSetting />}
             <Jargon />
           </div>
 
+          <CloudModelSetting />
+          <MeetingStorage />
           <Backup />
 
           <AiApps />
@@ -264,6 +269,36 @@ export function PermissionRow({ kind, status, onAsk }: { kind: PermissionKind; s
 type Said = { kind: 'exported'; count: number } | { kind: 'imported'; added: number; skipped: number } | { kind: 'error'; text: string; meetingId?: string }
 
 /** every meeting to one file, and back: for a new Mac or after reinstalling */
+function MeetingStorage() {
+  const [location, setLocation] = useState<{ current: string; pending?: string }>()
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { void window.yogurt.storage.status().then(setLocation).catch(e => setError(String(e))) }, [])
+  const change = async (action: 'choose' | 'cancel' | 'open') => {
+    setBusy(true)
+    setError('')
+    try {
+      if (action === 'open') setError(await window.yogurt.storage.open())
+      else setLocation(await window.yogurt.storage[action]())
+    } catch (e) { setError(String(e)) }
+    finally { setBusy(false) }
+  }
+  return <>
+    <h2 className="settings-section-heading">{t('Meeting storage location')}</h2>
+    <div className="settings-group settings-backup">
+      <p style={{ overflowWrap: 'anywhere' }}>{location?.current}</p>
+      <p className="settings-description">{t('Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.')}</p>
+      {location?.pending && <p style={{ overflowWrap: 'anywhere' }}>→ {location.pending}</p>}
+      <div className="settings-backup-actions">
+        <button disabled={busy} className="workspace-button" onClick={() => void change('open')}>{t('Open')}</button>
+        <button disabled={busy} className="workspace-button" onClick={() => void change('choose')}>{t('Choose folder')}</button>
+        {location?.pending && <button disabled={busy} className="workspace-button" onClick={() => void change('cancel')}>{t('Cancel')}</button>}
+      </div>
+      {error && <p role="alert" className="text-danger">{error}</p>}
+    </div>
+  </>
+}
+
 function Backup() {
   const [recording, setRecording] = useState(false)
   const [busy, setBusy] = useState<'export' | 'import' | null>(null)

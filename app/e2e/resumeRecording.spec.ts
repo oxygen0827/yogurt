@@ -1,3 +1,4 @@
+import { meetingDir } from './meetingDir'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { mkdtempSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -26,7 +27,8 @@ test('a finished note resumes after reopening, preserves original data, confirms
     await page.getByTestId('note-stop').click()
     await expect.poll(async () => (await page.evaluate((id) => window.yogurt.notes.get(id), id)).status).toBe('done')
     const prior = await page.evaluate(async (id) => ({ meeting: await window.yogurt.meetings.get(id), notes: await window.yogurt.notes.get(id), transcript: await window.yogurt.transcript.get(id) }), id)
-    const dir = join(profile, 'meetings', id), originalAudio = readFileSync(join(dir, 'me.wav'))
+    await expect.poll(() => meetingDir(profile, id)).toContain(' Resume safety fixture')
+    const dir = meetingDir(profile, id), originalAudio = readFileSync(join(dir, 'me.wav'))
     await app.close()
     ;({ app, page } = await launch(profile))
     await page.getByTestId('past-note').click()

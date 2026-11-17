@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "মিটিং সংরক্ষণের স্থান",
+  "Choose folder": "ফোল্ডার বেছে নিন",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "পরের বার চালু হলে Yogurt নোট ও রেকর্ডিং নতুন Yogurt Meetings ফোল্ডারে কপি করবে। মূল ফাইলগুলোও থাকবে।",
   "Link event": "ইভেন্ট লিঙ্ক করুন",
   "No events": "কোনো ইভেন্ট নেই",
   "Go to {date}": "{date} তারিখে যান",

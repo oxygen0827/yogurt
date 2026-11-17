@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "Kokoustietojen tallennuspaikka",
+  "Choose folder": "Valitse kansio",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "Seuraavalla käynnistyskerralla Yogurt kopioi muistiinpanot ja tallenteet uuteen Yogurt Meetings -kansioon ja säilyttää alkuperäiset tiedostot.",
   "Link event": "Liitä tapahtuma",
   "No events": "Ei tapahtumia",
   "Go to {date}": "Siirry päivään {date}",

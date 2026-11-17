@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "Opslaglocatie voor vergaderingen",
+  "Choose folder": "Map kiezen",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "Bij de volgende start kopieert Yogurt notities en opnamen naar een nieuwe map Yogurt Meetings. De originele bestanden blijven bewaard.",
   "Link event": "Afspraak koppelen",
   "No events": "Geen afspraken",
   "Go to {date}": "Ga naar {date}",

@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "Lokasyon ng mga pulong",
+  "Choose folder": "Pumili ng folder",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "Sa susunod na pagbukas, kokopyahin ng Yogurt ang mga tala at recording sa bagong folder na Yogurt Meetings at pananatilihin ang mga orihinal.",
   "Link event": "I-link ang event",
   "No events": "Walang event",
   "Go to {date}": "Pumunta sa {date}",

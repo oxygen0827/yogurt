@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "Placering af mødedata",
+  "Choose folder": "Vælg mappe",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "Ved næste start kopierer Yogurt noter og optagelser til en ny mappe med navnet Yogurt Meetings og beholder originalerne.",
   "Link event": "Tilknyt begivenhed",
   "No events": "Ingen begivenheder",
   "Go to {date}": "Gå til {date}",

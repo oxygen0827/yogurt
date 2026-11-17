@@ -19,6 +19,10 @@ files:
   - out/**
   - package.json
 extraResources:
+  - from: resources
+    to: .
+    filter:
+      - wetype/vk-test
   # the helpers (scripts/native.mjs): on a Mac native.sh's calendar, call detection and names in calls, recording,
   # speech to text; on Windows and Linux the Rust recorder, system helper and AI apps relay, and whisper-server
   - from: resources/bin

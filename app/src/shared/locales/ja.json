@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "会議データの保存先",
+  "Choose folder": "フォルダを選択",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "次回起動時に、新しい Yogurt Meetings フォルダにノートと録音をコピーします。元のファイルは保持されます。",
   "Link event": "予定にリンク",
   "No events": "予定はありません",
   "Go to {date}": "{date}に移動",

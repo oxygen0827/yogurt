@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "Locul de stocare a întâlnirilor",
+  "Choose folder": "Alege un dosar",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "La următoarea pornire, Yogurt copiază notițele și înregistrările într-un dosar nou numit Yogurt Meetings și păstrează originalele.",
   "Link event": "Leagă eveniment",
   "No events": "Niciun eveniment",
   "Go to {date}": "Mergi la {date}",

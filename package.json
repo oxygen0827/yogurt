@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "pnpm@10.7.0",
   "scripts": {
+    "package:mac:local": "YOGURT_SIGN_ID='Yogurt Local' YOGURT_NOTARIZE=0 sh app/scripts/release-mac.sh",
     "test": "pnpm -r test",
     "dev": "pnpm --filter @yogurt/app dev"
   },

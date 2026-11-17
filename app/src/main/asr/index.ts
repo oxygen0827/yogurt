@@ -10,7 +10,7 @@ import { whisperLanguage, type Spoken } from '../../shared/spoken'
 import { createWhisperServer, recoverer, vadModelPath, whisperServerPath, type WhisperServer } from './server'
 import { createTranscriber, type Line, type Transcribe } from './transcribe'
 import { meetingWords, respell, whisperPrompt } from '../vocab'
-import type { TranscriptPartial } from '../../shared/types'
+import type { TranscriptPartial, TranscriptionEngine } from '../../shared/types'
 import type { Chunk } from './chunker'
 
 /**
@@ -18,7 +18,7 @@ import type { Chunk } from './chunker'
  * echo check) that saves lines to the store and tells the window. A meeting's session is found by its id, whichever of
  * "meeting started" and "capture started" comes first, so the order the hooks were registered in does not matter.
  */
-type Session = { complete?: () => boolean; pipeline: Pipeline | null; priorLines: Set<number>; done?: Promise<void>; store?: SessionStore; refresh?: (id: string) => void
+type Session = { engine: TranscriptionEngine; complete?: () => boolean; pipeline: Pipeline | null; priorLines: Set<number>; done?: Promise<void>; store?: SessionStore; refresh?: (id: string) => void
   /** a saved recording that could not be read to the end (transcribeRecorded): the meeting keeps waiting */
   failed?: boolean
   /** Apple's speech listens in this locale for the meeting (null: whisper only); off once whisper hears another language */
@@ -96,7 +96,10 @@ export const transcribeRecorded: Recorded = (id, tracks, stopped) => recorded(id
 /** how much was heard in each language, per meeting; kept after the transcript is done, for the notes */
 const heard = new Map<string, Map<string, number>>()
 
-/** The language most of the meeting was said in (whisper's name for it, e.g. "spanish"); null when not known */
+export const transcriptionEngine = (id: string) => sessions.get(id)?.engine
+export const usesOnlineSpeech = (id: string) => transcriptionEngine(id) === 'wetype'
+
+/** The language heard most often, or null when unknown. */
 export function meetingLanguage(id: string): string | null {
   let best: string | null = null, most = 0
   for (const [lang, n] of heard.get(id) ?? []) if (n > most) { best = lang; most = n }
@@ -142,6 +145,8 @@ const NO_MODEL_NOTE_DELAY_MS = 400
 export function hookTranscription(p: {
   store: Pick<Store, 'addSegments' | 'updateMeeting'> & Partial<Pick<Store, 'segments' | 'hideSegments' | 'meeting'>>
   /** the speech model, once setup has it */
+  engineChanged?: () => void
+  onlineForNewMeeting?: (startedAt: number) => Transcribe | undefined
   modelPath: () => string | undefined
   send: (seg: Omit<Segment, 'id'>) => void
   /** saved echoes changed during recording or the final sweep: the window reads them again */
@@ -195,25 +200,49 @@ export function hookTranscription(p: {
       if (locked && s.speech && speechDisagrees(s.speech, lang)) speechOff(s, `whisper heard ${lang}, not ${s.speech}`)
     }
     const promptOf = () => { const m = p.store.meeting?.(id); return m ? whisperPrompt(meetingWords(m)) : '' }
-    if (p.transcriber) { const f = p.transcriber; transcribe = async (c, o) => f(c, (l, n, locked) => hear(l, n, locked), o) }
-    // fake mode's stand-in is loaded only in fake mode, so it stays out of what real runs load
-    else if (isFake()) transcribe = async (c, o) => (await import('./fake')).fakeTranscribe(c, o, promptOf(), whisperLanguage(spokenNow()))
-    else {
+    const start = p.store.meeting?.(id)?.startedAt
+    const online = !later && start != null ? p.onlineForNewMeeting?.(start) : undefined
+    const localTranscriber = (): Transcribe | undefined => {
+      if (p.transcriber) {
+        const f = p.transcriber
+        return async (c, o) => f(c, (l, n, locked) => hear(l, n, locked), o)
+      }
+      if (isFake()) return async (c, o) => (await import('./fake')).fakeTranscribe(c, o, promptOf(), whisperLanguage(spokenNow()))
       const model = p.modelPath()
-      if (model) {
-        const srv = serverFor(model, p.pidFile, p.server)
-        srv.resetBudget()
-        // the model takes a few seconds to load: start now, so the first chunk does not wait for it
-        srv.url().catch((e) => console.error('whisper-server did not start', e))
-        transcribe = createTranscriber({ url: () => srv.url(), recover: recoverer(srv), onLanguage: (_t, lang, chars, locked) => hear(lang, chars, locked), prompt: promptOf,
-          language: () => whisperLanguage(spokenNow()) })
-      } else {
-        console.warn('no speech model yet: this meeting is recorded but not transcribed')
-        setTimeout(() => warnOnce('no-speech-model'), NO_MODEL_NOTE_DELAY_MS)
+      if (!model) return undefined
+      const srv = serverFor(model, p.pidFile, p.server)
+      srv.resetBudget()
+      srv.url().catch((e) => console.error('whisper-server did not start', e))
+      return createTranscriber({ url: () => srv.url(), recover: recoverer(srv), onLanguage: (_t, lang, chars, locked) => hear(lang, chars, locked), prompt: promptOf,
+        language: () => whisperLanguage(spokenNow()) })
+    }
+    const setEngine = (engine: TranscriptionEngine) => {
+      if (s.engine === engine) return
+      s.engine = engine
+      p.engineChanged?.()
+    }
+    let fallback: Transcribe | undefined
+    if (online) transcribe = async (chunk, options) => {
+      if (fallback) return fallback(chunk, options)
+      try {
+        const lines = await online(chunk, options)
+        if (!options?.partial && !fallback) setEngine('wetype')
+        for (const line of lines) {
+          if (/\p{Script=Han}/u.test(line.text)) hear('chinese', line.text.length)
+        }
+        return lines
+      } catch (err) {
+        fallback ??= localTranscriber()
+        if (!fallback) { setEngine('unavailable'); throw err }
+        setEngine('whisper')
+        return fallback(chunk, options)
       }
     }
+    else transcribe = localTranscriber()
+    if (!transcribe) setTimeout(() => warnOnce('no-speech-model'), NO_MODEL_NOTE_DELAY_MS)
     const s: Session = {
-      complete: () => !!transcribe && !pendingBefore && !saveFailed && !warned.has('transcribe-failed') && !s.failed,
+      engine: online ? 'wetype' : transcribe ? 'whisper' : 'unavailable',
+      complete: () => !!transcribe && !pendingBefore && !saveFailed && !warned.has('transcribe-failed') && !warned.has('falling-behind') && !s.failed,
       store: p.store, refresh: p.refresh, speech: speechLocaleFor(id), priorLines: new Set(p.store.segments?.(id).map((s) => s.id) ?? []),
       pipeline: transcribe ? createPipeline({ meetingId: id, transcribe, save: (segs) => {
         try { p.store.addSegments(segs) } catch (e) { saveFailed = true; throw e }
@@ -240,7 +269,7 @@ export function hookTranscription(p: {
     if (stopped?.()) s.failed = true
     await finishSession(id, s, undefined, p.store)
     console.log(`ASR transcribed ${Math.round(ms / 1000)} s of a saved recording${s.failed ? ', not all of it' : ''}`)
-    return !s.failed
+    return s.complete?.() === true
   }
   // each capture of a meeting (a restarted recorder is a new one) feeds that meeting's session
   const offCapture = onCaptureStart((c, meetingId) => {
@@ -302,7 +331,7 @@ function finishSession(id: string, s: Session, audioDone: () => Promise<void> = 
   s.done ??= audioDone().then(() => s.pipeline?.finish()).then(() => {
     sweepEcho(id, s)
     if (s.complete?.()) s.store?.updateMeeting(id, { transcriptionPending: false })
-  }).catch((e) => console.error('finishing the transcript failed', e)).finally(() => {
+  }).catch((e) => { s.failed = true; console.error('finishing the transcript failed', e) }).finally(() => {
     // the meeting's main language is kept with it, for notes written later (after a restart too)
     const lang = meetingLanguage(id)
     if (lang) { try { s.store?.updateMeeting(id, { language: lang }) } catch (e) { console.error('saving the language failed', e) } }

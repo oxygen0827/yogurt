@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "מיקום אחסון הפגישות",
+  "Choose folder": "בחירת תיקייה",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "בהפעלה הבאה Yogurt יעתיק את ההערות וההקלטות לתיקייה חדשה בשם Yogurt Meetings וישמור את הקבצים המקוריים.",
   "Link event": "קישור אירוע",
   "No events": "אין אירועים",
   "Go to {date}": "מעבר אל {date}",

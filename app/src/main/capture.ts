@@ -276,6 +276,7 @@ export function setRecordingPaused(id: string, paused: boolean): boolean {
 }
 const finished = new Map<string, Promise<void>>()
 /** Resolves when the meeting's files are final: the helper has finished and any parts are joined. Read the audio after this. */
+export const recordingFilesBusy = (id: string) => finished.has(id)
 export const recordingFinished = (id: string): Promise<void> => finished.get(id) ?? Promise.resolve()
 
 /** Ends the recording: stops the helper, then joins the parts if it ever restarted */
@@ -315,11 +316,11 @@ export function foldersToJoin(meetingsDir: string): string[] {
  * The retry at start-up: join those folders once; one failing never stops the others. Each meeting (its folder's
  * name) counts as still recording until its own join is done, so nothing reads its files mid-rewrite.
  */
-export async function rejoinInterrupted(meetingsDir: string, join: (dir: string) => Promise<void> = joinParts): Promise<void> {
+export async function rejoinInterrupted(meetingsDir: string, join: (dir: string) => Promise<void> = joinParts, idOf: (dir: string) => string = basename): Promise<void> {
   const dirs = foldersToJoin(meetingsDir)
   const done = new Map<string, () => void>()
   for (const dir of dirs) {
-    const id = basename(dir)
+    const id = idOf(dir)
     const p = new Promise<void>((r) => done.set(dir, r)).finally(() => { inFlight.delete(p); if (finished.get(id) === p) finished.delete(id) })
     finished.set(id, p)
     inFlight.add(p)

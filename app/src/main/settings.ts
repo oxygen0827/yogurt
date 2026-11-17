@@ -41,6 +41,8 @@ export type Settings = { theme?: 'light' | 'dark'; language?: string; /** what t
   /** names, products and acronyms to spell right in transcripts and notes (shared/jargon.ts) */
   jargon?: string[]
   /** the language people speak in meetings: English only unless 'multi' (shared/spoken.ts) */
+  cloud?: { enabled: boolean; url: string; model: string; secret?: string }
+  weTypeSince?: number
   spoken?: Spoken
   /** new versions download by themselves; on unless turned off */
   autoUpdate?: boolean }

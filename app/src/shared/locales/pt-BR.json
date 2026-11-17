@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "Local de armazenamento das reuniões",
+  "Choose folder": "Escolher pasta",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "Na próxima inicialização, o Yogurt copiará as notas e gravações para uma nova pasta Yogurt Meetings e manterá os originais.",
   "Link event": "Vincular evento",
   "No events": "Nenhum evento",
   "Go to {date}": "Ir para {date}",

@@ -43,3 +43,7 @@ Installers land in `app/dist/`. They're unsigned unless signing is set up; see `
 ## Release
 
 `sh app/scripts/release.sh X.Y.Z` sets the version, tags it and pushes. GitHub Actions builds Mac (signed and notarized), Windows and Linux, and publishes one release once all three pass. Installed copies update from it.
+
+### 在本机保留 macOS 辅助功能授权
+
+在仓库根目录运行 `npm run package:mac:local`。此命令使用登录钥匙串中的 `Yogurt Local` 代码签名证书，检查应用和辅助进程的签名，并将安装包写入 `app/dist/local-signed/Yogurt-mac-arm64.dmg`。首次从临时签名版换装后，在系统设置中为 Yogurt 开启一次辅助功能。后续更新沿用同一张证书和应用标识。

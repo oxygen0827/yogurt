@@ -16,7 +16,7 @@ fi
 cd "$(dirname "$0")/.."
 PROFILE="${YOGURT_NOTARY_PROFILE:-yogurt-notary}"
 APP=dist/mac-arm64/Yogurt.app
-set --
+set -- --mac
 if [ "$LOCAL" = 1 ]; then
   # Pin the exact certificate; never silently fall back to ad-hoc or a different signer.
   CERT=$(security find-identity -v -p codesigning | awk '/"Yogurt Local"$/ { print $2 }')
@@ -32,18 +32,19 @@ if [ "$LOCAL" = 1 ]; then
 const path = require('node:path')
 const dir = process.argv[2]
 console.log(JSON.stringify({ extends: path.resolve('electron-builder.yml'), publish: null, forceCodeSigning: true,
-  mac: { identity: 'Yogurt Local', notarize: false, entitlements: path.join(dir, 'mac.plist'),
+  electronDist: path.join(path.dirname(require.resolve('electron/package.json')), 'dist'), mac: { identity: 'Yogurt Local', notarize: false, entitlements: path.join(dir, 'mac.plist'),
     entitlementsInherit: path.join(dir, 'mac.inherit.plist') } }))
 JS
-  set -- --config "$LOCAL_DIR/config.json"
+  APP=dist/local-signed/mac-arm64/Yogurt.app
+  set -- --mac dmg --arm64 --config "$LOCAL_DIR/config.json" -c.directories.output=dist/local-signed
 fi
-rm -rf dist
+if [ "$LOCAL" = 0 ]; then rm -rf dist; fi
 sh scripts/native.sh
 npx electron-vite build
 EXTRA=""
 # Electron's own defaults, fuse by fuse (the config file sets them; -c can't remove a setting)
 [ "${YOGURT_FUSES:-1}" = 0 ] && EXTRA="-c.electronFuses.runAsNode=true -c.electronFuses.enableNodeOptionsEnvironmentVariable=true -c.electronFuses.enableNodeCliInspectArguments=true -c.electronFuses.onlyLoadAppFromAsar=false -c.electronFuses.enableEmbeddedAsarIntegrityValidation=false"
-CSC_NAME="$ID" npx electron-builder --mac --publish never "$@" $EXTRA
+CSC_NAME="$ID" npx electron-builder "$@" --publish never $EXTRA
 # the app holds only the built code: a source folder inside means the build settings weren't applied
 node scripts/asar-check.mjs "$APP/Contents/Resources/app.asar"
 # the packaged notes engine starts and loads its dependencies (a local build is checked on release CI instead)
@@ -68,9 +69,9 @@ for h in "$APP" "$APP"/Contents/Resources/bin/*; do
 done
 codesign -d --entitlements - "$APP/Contents/Resources/bin/yogurt-audio" 2>/dev/null | grep -q device.audio-input || { echo "yogurt-audio can't use the microphone" >&2; exit 1; }
 if [ "${YOGURT_FUSES:-1}" != 0 ]; then
-  pnpm exec electron-fuses read --app "$APP" | grep -q "RunAsNode is Disabled" || { echo "Electron's fuses aren't set" >&2; exit 1; }
+  npx --no-install electron-fuses read --app "$APP" | grep -q "RunAsNode is Disabled" || { echo "Electron's fuses aren't set" >&2; exit 1; }
 fi
-DMG=dist/Yogurt-mac-arm64.dmg
+DMG="$(dirname "$(dirname "$APP")")/Yogurt-mac-arm64.dmg"
 # electron-builder signed the disk image too (dmg.sign); signing it again here would change it after latest-mac.yml
 verify_identity "$DMG"
 if [ "$LOCAL" = 1 ]; then

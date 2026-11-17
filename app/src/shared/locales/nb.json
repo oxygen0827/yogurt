@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "Lagringssted for møter",
+  "Choose folder": "Velg mappe",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "Ved neste oppstart kopierer Yogurt notater og opptak til en ny mappe kalt Yogurt Meetings og beholder originalene.",
   "Link event": "Koble til hendelse",
   "No events": "Ingen hendelser",
   "Go to {date}": "Gå til {date}",

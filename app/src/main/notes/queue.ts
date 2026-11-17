@@ -37,6 +37,7 @@ const CHECK_MS = 1000
 export function createQueue(o: {
   recording: () => boolean
   smallMac: boolean
+  allowLiveReadAhead?: () => boolean
   /** the most audio waiting for transcription on any track, in ms (bigger Macs) */
   backlogMs?: () => number
   /** nothing to do for IDLE_UNLOAD_MS with nothing recording, or a recording started on a small Mac: the model can go */
@@ -61,6 +62,7 @@ export function createQueue(o: {
   const allowed = (kind: JobKind) => {
     if (o.modelReady && !o.modelReady()) return false
     if ((kind === 'index' || kind === 'folder') && o.recording()) return false
+    if (kind === 'readahead' && o.recording() && o.allowLiveReadAhead?.()) return backlog() <= READ_BACKLOG_MS
     if (kind === 'readahead' && !o.smallMac && backlog() > READ_BACKLOG_MS) return false
     if (o.smallMac) return !o.recording()
     if (yielded && backlog() < RESUME_MS) yielded = false
@@ -69,7 +71,8 @@ export function createQueue(o: {
 
   // bigger Macs: look at the backlog while there is model work
   const watching = () => {
-    const want = !o.smallMac && !!o.backlogMs && (!!running || waiting.length > 0)
+    const monitor = !o.smallMac || !!o.allowLiveReadAhead?.()
+    const want = monitor && !!o.backlogMs && (!!running || waiting.length > 0)
     if (want && !watch) watch = setInterval(() => {
       if (running?.entry.kind === 'readahead' && backlog() > READ_BACKLOG_MS) running.abort.abort()
       else if (running && backlog() > BACKLOG_MS) { yielded = true; running.abort.abort() }
@@ -134,7 +137,7 @@ export function createQueue(o: {
       let resolve!: () => void, reject!: (e: unknown) => void
       const done = new Promise<void>((yes, no) => { resolve = yes; reject = no })
       // Not while a small Mac records; deleted meetings never receive new work.
-      if ((kind === 'readahead' && o.smallMac && o.recording()) || (meetingId && gone.has(meetingId))) { resolve(); return done }
+      if ((kind === 'readahead' && o.smallMac && o.recording() && !o.allowLiveReadAhead?.()) || (meetingId && gone.has(meetingId))) { resolve(); return done }
       if (kind === 'readahead') {
         for (const e of waiting.filter((x) => x.kind === 'readahead')) { waiting.splice(waiting.indexOf(e), 1); e.resolve() }
       } else if (kind === 'index') {

@@ -51,6 +51,15 @@ const turboUrl = catalog.asr[0].url
 const smallUrl = catalog.asr[1].url
 
 describe('SetupController', () => {
+  it('gets the notes models without downloading local speech when WeType was selected on Mac', async () => {
+    const { c, rec } = setup({ onlineSpeech: () => true })
+    await c.start()
+    await c.idle()
+    expect(c.installed()?.asr).toBeUndefined()
+    expect(rec.asked).not.toContain(turboUrl)
+    expect(c.installed()?.llm).toBeTruthy()
+  })
+
   it('goes checking, downloading, ready; the fraction only goes up and ends at 1', async () => {
     const { c, states } = setup()
     expect(c.state.phase).toBe('checking')

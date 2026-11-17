@@ -17,7 +17,8 @@ export type DeleteRecordingResult = 'deleted' | 'missing' | 'recording' | 'not-t
 
 export type Theme = 'light' | 'dark' | 'system'
 /** The capture has stopped, but its final database state may still need an explicit retry. */
-export type MeetingView = Meeting & { stopSavePending?: true; paused?: true }
+export type TranscriptionEngine = 'wetype' | 'whisper' | 'unavailable'
+export type MeetingView = Meeting & { transcriptionEngine?: TranscriptionEngine; stopSavePending?: true; paused?: true }
 export type MeetingCard = StoredMeetingCard & { paused?: true }
 
 /** What the window sees of the app: window.yogurt (the preload bridge, contextIsolation on) */
@@ -159,6 +160,20 @@ export type YogurtApi = {
     /** the corner's offer was closed: it comes back tomorrow */
     later(): Promise<void>
     onStatus(fn: (s: UpdateStatus) => void): () => void
+  }
+  cloud: {
+    get(): Promise<{ enabled: boolean; url: string; model: string; hasKey: boolean }>
+    save(input: { enabled: boolean; url: string; model: string; key: string }): Promise<{ enabled: boolean; url: string; model: string; hasKey: boolean }>
+  }
+  weType: {
+    get(): Promise<{ enabled: boolean; installed: boolean }>
+    set(on: boolean): Promise<boolean>
+  }
+  storage: {
+    status(): Promise<{ current: string; pending?: string }>
+    choose(): Promise<{ current: string; pending?: string }>
+    cancel(): Promise<{ current: string; pending?: string }>
+    open(): Promise<string>
   }
   backup: {
     /** import waits while a meeting records */

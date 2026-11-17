@@ -1,3 +1,4 @@
+import { meetingDir } from './meetingDir'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
 import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -38,7 +39,7 @@ test('every meeting goes to one file and into a fresh Yogurt, with notes, transc
     await b.page.getByTestId('nav-home').click()
     // home heard about it without a reload
     await expect(b.page.getByTestId('past-note')).toHaveCount(4)
-    expect(existsSync(join(b.userData, 'meetings', id, 'me.wav'))).toBe(true)
+    expect(existsSync(join(meetingDir(b.userData, id), 'me.wav'))).toBe(true)
 
     await b.page.keyboard.press('Meta+k')
     await b.page.keyboard.type('long meeting')
@@ -83,7 +84,7 @@ test('@everywhere a backup restores into a fresh Yogurt on this computer, record
     await b.page.getByTestId('settings-open').click()
     await b.page.getByTestId('backup-import').click()
     await expect(b.page.getByTestId('backup-said')).toHaveText('Added 1 meeting.')
-    expect(existsSync(join(b.userData, 'meetings', id, 'me.wav'))).toBe(true)
+    expect(existsSync(join(meetingDir(b.userData, id), 'me.wav'))).toBe(true)
   } finally { await b.app.close() }
 })
 

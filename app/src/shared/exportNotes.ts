@@ -142,9 +142,7 @@ export function toMarkdownFile(meeting: Meeting, notes: string, segments: Segmen
 export function fileNameFor(title: string, startedAt: number): string {
   const d = new Date(startedAt)
   const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  const clean = title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().replace(/^\.+|\.+$/g, '').trim()
-  // cut by whole characters, never through an emoji
-  const short = Array.from(clean).slice(0, 80).join('').trim()
+  const short = cleanMeetingTitle(title, 80)
   return `${short || t('Meeting')} ${day}.md`
 }
 
@@ -158,4 +156,10 @@ export function shareTarget(shown: 'mine' | 'enhanced', status: NoteStatus, hasE
   if (status === 'waiting' || status === 'writing') return { side: 'enhanced', writing: true, fellBack: false }
   if ((status === 'failed' && !hasEnhanced) || status === 'empty') return { side: 'mine', writing: false, fellBack: true }
   return { side: 'enhanced', writing: false, fellBack: false }
+}
+
+export function cleanMeetingTitle(title: string, limit: number): string {
+  const clean = title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().replace(/^\.+|\.+$/g, '').trim()
+  // cut by whole characters, never through an emoji
+  return Array.from(clean).slice(0, limit).join('').trim()
 }

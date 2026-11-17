@@ -4,7 +4,7 @@ import { backfillPeople, mergePeople } from './people'
 import { constants, existsSync } from 'node:fs'
 import { cp, lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { isId } from './ipcArgs'
 import { pack, unpack } from './zip'
@@ -136,7 +136,7 @@ const scratch = (name: string) => name.endsWith('.f32')
 const cleanup = (dir: string) => rm(dir, { recursive: true, force: true }).catch((e) => console.warn('backup cleanup failed', dir, e))
 
 /** Everything to one zip: a snapshot of the database (safe while Yogurt runs), each meeting's recordings, and a manifest */
-export async function exportBackup(o: { db: DatabaseSync; meetingsDir: string; out: string; appVersion: string; now?: number }): Promise<{ meetings: number }> {
+export async function exportBackup(o: { db: DatabaseSync; dirOf?: (id: string) => string; meetingsDir: string; out: string; appVersion: string; now?: number }): Promise<{ meetings: number }> {
   const work = await mkdtemp(join(tmpdir(), 'yogurt-export-'))
   let staging: string | undefined
   try {
@@ -150,11 +150,11 @@ export async function exportBackup(o: { db: DatabaseSync; meetingsDir: string; o
     const ids = (snap.prepare('SELECT id FROM meetings').all() as Row[]).map((r) => r.id).filter(isId)
     snap.close()
     for (const id of ids) {
-      const src = join(o.meetingsDir, id)
+      const src = o.dirOf?.(id) ?? join(o.meetingsDir, id)
       if (!existsSync(src)) continue
       // a clone on the Mac's disk: instant, and no extra space until one side changes
       try {
-        await cp(src, join(work, 'meetings', id), { recursive: true, mode: constants.COPYFILE_FICLONE, filter: (s) => !scratch(s) })
+        await cp(src, join(work, 'meetings', id), { recursive: true, mode: constants.COPYFILE_FICLONE, filter: async (s) => !scratch(s) && !['.yogurt-meeting', '会议纪要.md', '转写.md'].includes(basename(s)) && await plainOnly(s) })
       } catch (e) {
         // Recordings can be deleted during export; the saved text still makes a complete backup.
         if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e

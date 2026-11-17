@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "Папка для данных встреч",
+  "Choose folder": "Выбрать папку",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "При следующем запуске Yogurt скопирует заметки и записи в новую папку Yogurt Meetings. Исходные файлы сохранятся.",
   "Link event": "Связать событие",
   "No events": "Нет событий",
   "Go to {date}": "Перейти к {date}",

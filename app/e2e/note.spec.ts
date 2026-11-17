@@ -1,3 +1,4 @@
+import { meetingDir } from './meetingDir'
 import { selectNoteVersion } from './noteVersion'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
@@ -433,7 +434,7 @@ test('delete from the note menu: not while it records; to the Trash with Undo; d
     await stop(page)
     // while its notes are still being written: they stop with it
     await expect.poll(async () => (await notesOf(page, id)).status, { timeout: 30_000 }).not.toBe('idle')
-    const dir = join(userData, 'meetings', id)
+    const dir = meetingDir(userData, id)
     expect(existsSync(dir)).toBe(true)
     // Delete: no question, the note closes, and it waits in the Trash with everything kept
     await page.getByTestId('note-menu-button').click()

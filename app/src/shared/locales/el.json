@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "Τοποθεσία αποθήκευσης συσκέψεων",
+  "Choose folder": "Επιλογή φακέλου",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "Στην επόμενη εκκίνηση το Yogurt θα αντιγράψει τις σημειώσεις και τις εγγραφές σε νέο φάκελο Yogurt Meetings και θα διατηρήσει τα πρωτότυπα.",
   "Link event": "Σύνδεση συμβάντος",
   "No events": "Κανένα συμβάν",
   "Go to {date}": "Μετάβαση στις {date}",

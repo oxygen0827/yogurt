@@ -216,6 +216,20 @@ const api: YogurtApi = {
     later: () => ipcRenderer.invoke('updates:later'),
     onStatus: (fn) => { const f = (_e: unknown, s: UpdateStatus) => fn(s); ipcRenderer.on('updates:status', f); return () => { ipcRenderer.off('updates:status', f) } },
   },
+  cloud: {
+    get: () => ipcRenderer.invoke('cloud:get'),
+    save: input => ipcRenderer.invoke('cloud:save', input),
+  },
+  weType: {
+    get: () => ipcRenderer.invoke('wetype:get'),
+    set: (on) => ipcRenderer.invoke('wetype:set', on),
+  },
+  storage: {
+    status: () => ipcRenderer.invoke('storage:status'),
+    choose: () => ipcRenderer.invoke('storage:choose'),
+    cancel: () => ipcRenderer.invoke('storage:cancel'),
+    open: () => ipcRenderer.invoke('storage:open'),
+  },
   backup: {
     status: () => ipcRenderer.invoke('backup:status'),
     export: () => ipcRenderer.invoke('backup:export'),

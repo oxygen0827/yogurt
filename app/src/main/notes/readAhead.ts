@@ -125,7 +125,7 @@ export function hookReadAhead(p: {
   queue: Queue
   model: Pick<NotesModel, 'llm'>
   /** reading ahead is allowed on this Mac (readAheadAllowed) */
-  live: boolean
+  live: boolean | ((id: string) => boolean)
   /** audio waiting for transcription, in ms */
   backlogMs: () => number
   /** the language heard most so far */
@@ -187,13 +187,13 @@ export function hookReadAhead(p: {
   const tick = (id: string, s: Session) => {
     const { untilMs } = stableTurns(p.store.segments(id), now() - s.startedAt)
     // one still waiting or reading reads what has settled by the time it runs
-    if (s.queued || !shouldReadAhead({ live: p.live, backlogMs: p.backlogMs(), untilMs, readMs: s.readMs, everyMs: p.readEveryMs })) return
+    if (s.queued || !shouldReadAhead({ live: true, backlogMs: p.backlogMs(), untilMs, readMs: s.readMs, everyMs: p.readEveryMs })) return
     s.queued = true
     p.queue.enqueue(job(id, s, false), 'readahead', id).catch((e) => console.error('reading ahead failed', id, e)).finally(() => { s.queued = false })
   }
 
   p.onStart((m) => {
-    if (!p.live) return
+    if (!(typeof p.live === 'function' ? p.live(m.id) : p.live)) return
     // a new recording (of this id too) starts afresh
     sessions.get(m.id)?.stopTimer?.()
     kept.delete(m.id)

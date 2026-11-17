@@ -1,4 +1,7 @@
 {
+  "Meeting storage location": "Vị trí lưu cuộc họp",
+  "Choose folder": "Chọn thư mục",
+  "Choose a folder. On next launch, Yogurt copies notes and recordings into a new Yogurt Meetings folder and keeps the originals.": "Khi mở lại, Yogurt sẽ sao chép ghi chú và bản ghi âm vào thư mục mới có tên Yogurt Meetings và giữ lại bản gốc.",
   "Link event": "Liên kết sự kiện",
   "No events": "Không có sự kiện",
   "Go to {date}": "Đi đến {date}",

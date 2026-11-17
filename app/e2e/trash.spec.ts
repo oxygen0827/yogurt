@@ -1,3 +1,4 @@
+import { meetingDir } from './meetingDir'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -228,7 +229,7 @@ test('Empty Trash asks first, then deletes every meeting in it for good, recordi
     await expect(page.getByTestId('trash-none')).toBeVisible()
     for (const id of ids) {
       expect(await page.evaluate((id) => window.yogurt.meetings.get(id), id)).toBeUndefined()
-      expect(existsSync(join(userData, 'meetings', id))).toBe(false)
+      expect(existsSync(meetingDir(userData, id))).toBe(false)
     }
     await page.getByTestId('nav-home').click()
     await expect(page.getByTestId('past-note')).toHaveCount(2)
