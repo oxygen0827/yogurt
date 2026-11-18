@@ -1,3 +1,4 @@
+import { MeetingSpeakers } from '../components/MeetingsSpeakers'
 import { citationTargetIndex } from '../../../shared/citations'
 import { NoteReadingPane } from '../components/NoteReadingPane'
 import type { LibrarySource } from '../../../shared/types'
@@ -401,6 +402,7 @@ export function Note({ id, onTitleChange, at, folderSuggestion, onSource, onResu
                 /> : <Enhanced focus={primary === 'notes' && at?.ms === null ? at : undefined} notes={notes} disabled={starting} onChange={(md) => { setEditedHere(true); const next = { ...current.current!, enhanced: md }; current.current = next; setNotes(next); enhancedSave.change(md) }} onBlur={enhancedSave.flush} onRetry={writeAgain} />}
           </NoteReadingPane>
           {(primary === 'transcript' || transcriptVisited) && <section hidden={primary !== 'transcript'} id="note-transcript-panel" role="tabpanel" aria-labelledby="note-transcript-tab" className="note-content note-transcript-pane">
+            {primary === 'transcript' && !recording && m.state !== 'prepared' && <MeetingSpeakers key={id} id={id} />}
             <Transcript id={id} recording={recording} active={primary === 'transcript'} inline toolbar={transcriptToolbar} focus={at?.ms != null ? { ...at, ms: at.ms } : undefined} />
           </section>}
           </div>

@@ -1,3 +1,4 @@
+import { SpeakerSettings } from '../components/MeetingsSpeakers'
 import { CloudModelSetting } from '../components/CloudModelSetting'
 import { WeTypeSetting } from '../components/WeTypeSetting'
 import { LoadingContent } from '../components/LoadingContent'
@@ -147,6 +148,7 @@ export function Settings({ revision = 0, focus }: { revision?: number; focus?: s
           </div>
 
           <CloudModelSetting />
+          <SpeakerSettings />
           <MeetingStorage />
           <Backup />
 

@@ -16,7 +16,7 @@ afterEach(() => {
 })
 const wait = (ms = 5) => new Promise((r) => setTimeout(r, ms))
 
-function setup(o: { me?: string; named?: () => Promise<void>; namesWaitMs?: number; reply?: string | ((prompt: string) => string); during?: () => void; load?: Promise<void>; title?: string; recording?: () => boolean; smallMac?: boolean; showLoading?: boolean } = {}) {
+function setup(o: { me?: string; beforeSummary?: (id: string) => Promise<boolean>; named?: () => Promise<void>; namesWaitMs?: number; reply?: string | ((prompt: string) => string); during?: () => void; load?: Promise<void>; title?: string; recording?: () => boolean; smallMac?: boolean; showLoading?: boolean } = {}) {
   const d = mkdtempSync(join(tmpdir(), 'yogurt-notes-'))
   dirs.push(d)
   const store = openStore(join(d, 'yogurt.db'))
@@ -37,13 +37,28 @@ function setup(o: { me?: string; named?: () => Promise<void>; namesWaitMs?: numb
   const queue = createQueue({ recording: o.recording ?? (() => false), smallMac: o.smallMac ?? false })
   const notes = hookNotes({
     store, queue, model: { llm: async () => { await o.load; return llm }, needsLoad: () => true }, showLoading: o.showLoading,
-    transcribed: () => transcript, named: o.named, namesWaitMs: o.namesWaitMs, language: () => 'spanish',
+    transcribed: () => transcript, beforeSummary: o.beforeSummary, named: o.named, namesWaitMs: o.namesWaitMs, language: () => 'spanish',
     onStop: (fn) => stops.push(fn), send: (v) => sent.push(v), changed: (id) => changed.push(id), peopleRewriteMs: 30, me: () => o.me ?? '',
   })
   return { store, m, notes, sent, prompts, changed, queue, stop: () => stops.forEach((f) => f(m)), transcribed }
 }
 
 describe('hookNotes', () => {
+  it('does not call the model until the reviewed speaker labels have been saved', async () => {
+    let reviewed = false
+    const s = setup({ beforeSummary: async () => reviewed })
+    s.stop(); s.transcribed()
+    await s.notes.written(s.m.id)
+    expect(s.prompts).toEqual([])
+    expect(s.store.notes(s.m.id).enhanced).toBeNull()
+
+    s.store.db.prepare('UPDATE segments SET speaker=? WHERE meeting_id=?').run('Wang', s.m.id)
+    reviewed = true
+    await s.notes.writeAgain(s.m.id)
+    expect(s.prompts.some(prompt => prompt.includes('Wang'))).toBe(true)
+    expect(s.store.notes(s.m.id).enhanced).toContain('## Plan')
+  })
+
   it('off a Mac, a note waiting on the model to load says so; then it writes', async () => {
     let release!: () => void
     const load = new Promise<void>((resolve) => { release = resolve })

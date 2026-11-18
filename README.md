@@ -28,7 +28,7 @@
 
 ## 本机版安装与更新（Apple Silicon）
 
-页首提供 `fork-0.3.27.2` 的 Apple Silicon 安装包，包含腾讯会议与飞书支持、会议文件夹、云端模型和实验性的微信在线转写。此安装包使用 Yogurt Local 自签名证书，未经 Apple 公证。
+页首提供 `fork-0.3.27.2` 的 Apple Silicon 安装包，包含腾讯会议与飞书支持、会议文件夹、云端模型和实验性的微信在线转写。此安装包使用 Yogurt Local 自签名证书，未经 Apple 公证。Spark 会后说话人识别需要从当前源码构建。
 
 在自己的 Mac 上准备名为 `Yogurt Local` 的有效代码签名身份后，在仓库根目录运行 `npm run package:mac:local`。生成的安装包位于 `app/dist/local-signed/Yogurt-mac-arm64.dmg`。将 Yogurt 放入「应用程序」，在「系统设置 → 隐私与安全性 → 辅助功能」中添加并开启它，即可使用发言人标注。后续本机更新请复用同一证书和打包命令，以便 macOS 沿用授权。详见[构建说明](docs/building.md)。
 
@@ -38,6 +38,29 @@
 
 在「设置 → 纪要与问答模型」启用云端，填写 API Key 并保存。默认地址为 `https://api.deepseek.com`，模型为 `deepseek-flash`。也可使用兼容 OpenAI Chat Completions 的流式接口。生成纪要和问答所需的文字会发送给该服务，会议检索仍在本机执行。API Key 加密保存在应用配置中。
 
+## DGX Spark 会后说话人识别
+
+Yogurt 在录音结束后用 DGX Spark 上的 3D-Speaker 分离对方音轨中的说话人。第一次为声音组确认姓名后，Yogurt 会在这台 Mac 上保存声纹，用于后续会议的匹配。麦克风音轨按「你」保留。
+
+### 部署
+
+1. 在 Spark 上准备 Python 3.12 和 uv。在 Mac 的 SSH 配置中添加 Spark 的主机别名。以下示例用 `yogurt-spark`，首次连接时请核对服务器主机密钥，并确认后续可以免交互登录。
+2. 在 Mac 的仓库根目录运行以下命令，将分析程序和依赖安装到 Spark 的用户目录。模型默认在 Spark 的 CPU 上运行。第一次处理混有多个说话人的片段时，Spark 会下载用于拆分转写的中文 Paraformer 模型。
+
+   ```sh
+   ssh yogurt-spark 'mkdir -p ~/.local/share/yogurt-speaker'
+   scp app/speaker-server/analyze.py app/speaker-server/install.sh yogurt-spark:.local/share/yogurt-speaker/
+   ssh yogurt-spark 'sh ~/.local/share/yogurt-speaker/install.sh'
+   ```
+
+3. 用当前源码构建 Yogurt，然后在「设置 → 会后说话人识别」里保存同一个 SSH 主机别名。清空别名并保存即可关闭。
+
+### 登记姓名与生成纪要
+
+- **首次登记。** 打开已结束的会议，进入「文字记录 → 说话人识别」。已有录音可以点「分析录音」。试听各组的代表片段，填写确认过的姓名，再点「确认姓名并生成纪要」。姓名留空时保留说话人编号。太短的样本可以加姓名标注，但无法登记声纹。
+- **后续会议。** 新录音结束后，Yogurt 先保存带标注的转写，再生成纪要。所有声音组都能明确匹配时会自动继续。遇到陌生声音或相近的匹配结果时，确认后再继续。无法可靠拆分的混合片段保留原文，标为「待确认」。对已有纪要的历史会议，自动匹配完成后可在摘要菜单中重新生成。
+- **数据存放。** Yogurt 通过 SSH 把对方音轨和转写的时间范围发给自有 Spark，任务结束后清理临时音频。登记后的姓名和声纹保存在 Mac 的 Yogurt 应用数据目录。转写和纪要仍写入会议文件夹。
+
 ## 微信输入法在线转写（macOS，实验功能）
 
 当前源码支持用微信输入法服务转写新会议的双方音频。开启前使用 Yogurt 原有的本地识别；开启后的语音片段会发送到腾讯，会议库保存在本机，纪要使用设置中选择的模型。这个功能使用 [VoiceKey](https://github.com/J3n5en/voicekey) 的非官方 WeType 协议，服务变更可能影响可用性。
@@ -46,7 +69,7 @@
 2. 在此源码构建的 Yogurt 中，打开「设置 → 语言 → 微信输入法在线转写」。初次设置也可在模型准备界面选择，选好后完全退出并重新打开。
 3. 开始一场新会议，录音界面会显示「微信在线转写」「本地 Whisper」或「转写暂不可用」。语音停顿或分段后会出现定稿。已有会议的补转写仍在本地执行。关闭选项即可让新会议恢复使用本地模型；如果此前跳过了本地语音模型，重启后会下载它。
 
-在 16 GB 及以上的 Apple Silicon Mac 上，微信在线转写期间，本地纪要模型可以分批预读已定稿的文字。积压时优先转写，会后生成完整纪要。
+在 16 GB 及以上的 Apple Silicon Mac 上，使用本地纪要模型且未启用 Spark 会后说话人识别时，微信在线转写期间可以分批预读已定稿的文字。积压时优先转写，会后生成完整纪要。
 
 ## 腾讯会议与飞书会议（macOS）
 
@@ -80,7 +103,7 @@ https://github.com/user-attachments/assets/da16b894-beb1-491a-89e1-fd10666dc9b8
 2. **Transcribe.** Yogurt uses whisper.cpp and, on supported Macs, Apple SpeechAnalyzer.
 3. **Summarize and ask.** Use a local model through llama.cpp or configure a compatible cloud endpoint in Settings.
 
-Meeting files are saved locally. Optional online transcription and cloud text generation send their inputs to the selected service.
+Meeting files are saved locally. Optional online transcription and cloud text generation send their inputs to the selected service. Optional post-meeting speaker identification sends the remote audio track to your own Spark over SSH.
 
 <details><summary>Where your meetings, recordings, settings and models are stored</summary>
 

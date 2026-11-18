@@ -22,7 +22,20 @@ export type MeetingView = Meeting & { transcriptionEngine?: TranscriptionEngine;
 export type MeetingCard = StoredMeetingCard & { paused?: true }
 
 /** What the window sees of the app: window.yogurt (the preload bridge, contextIsolation on) */
+export type SpeakerReview = {
+  enabled: boolean; busy: boolean; failed: boolean; applied: boolean
+  voices: { id: number; sampleMs: number; sampleEndMs: number; name: string; canEnroll: boolean }[]
+}
+
 export type YogurtApi = {
+  speakers: {
+    host(): Promise<string>
+    setHost(host: string): Promise<void>
+    get(id: string): Promise<SpeakerReview>
+    analyze(id: string): Promise<SpeakerReview>
+    apply(id: string, names: string[]): Promise<boolean>
+    onChange(cb: (id: string) => void): () => void
+  }
   platform: NodeJS.Platform
   /** the computer the screens are for: the real one, or in fake mode the one YOGURT_FAKE_PLATFORM pretends to be (shortcut keys follow it) */
   os: string

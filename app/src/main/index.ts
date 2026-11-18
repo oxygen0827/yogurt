@@ -17,6 +17,7 @@ import os from 'node:os'
 import { basename, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { meetingFiles } from './meetingFiles'
+import { speakerReview, sshTarget } from './speakerReview'
 import { meetingStorage } from './meetingStorage'
 import { weTypeTranscriber } from './asr/wetype'
 import { isFake, userDataDir } from './paths'
@@ -643,16 +644,47 @@ app.whenReady().then(() => {
   setup.onEmbedModel(() => void indexer.schedule())
   onMeetingStart(() => queue.recordingChanged())
   onMeetingStop(() => queue.recordingChanged())
+  const speakerTarget = () => {
+    const host = loadSettings(settingsFile).speakerHost
+    return sshTarget(host) ? host : undefined
+  }
+  const speakers = speakerReview({
+    dir: join(userDataDir(), 'speaker-profiles'), store, target: speakerTarget,
+    track: id => trackFile(meetingDir(id), 'them', audioExts(process.platform, isFake())),
+    changed: id => {
+      win?.webContents.send('speakers:changed', id)
+      win?.webContents.send('transcript:speakers', id)
+      void indexer.schedule()
+    },
+  })
+  ipcMain.handle('speakers:host', () => speakerTarget() ?? '')
+  ipcMain.handle('speakers:host-save', (_e, host: unknown) => {
+    if (host !== '' && !sshTarget(host)) throw new Error('Enter an SSH host alias')
+    updateSettings(settingsFile, { speakerHost: host || undefined })
+  })
+  ipcMain.handle('speakers:get', (_e, id: unknown) => isId(id) ? speakers.view(id) : null)
+  ipcMain.handle('speakers:analyze', async (_e, id: unknown) => {
+    if (!isId(id) || stopSavePending(id)) return null
+    await recordingSettled(id)
+    await transcriptFinished(id)
+    await speakers.start(id, true)
+    return speakers.view(id)
+  })
+  ipcMain.handle('speakers:apply', (_e, id: unknown, values: unknown) => {
+    if (!isId(id) || !speakers.apply(id, values)) return false
+    if (!store.notes(id).edited) setImmediate(() => { void notes.writeAgain(id) })
+    return true
+  })
   // the meeting is read into the model as it happens, so its notes start within seconds of stopping
   const readAhead = hookReadAhead({
-    store, queue, model, live: id => !cloud.active() && (readsAhead || canReadOnline(id)), backlogMs: transcriptionBacklogMs, language: meetingLanguage,
+    store, queue, model, live: id => !speakerTarget() && !cloud.active() && (readsAhead || canReadOnline(id)), backlogMs: transcriptionBacklogMs, language: meetingLanguage,
     transcribed: async (id) => { await recordingFinished(id); await transcriptFinished(id) }, onStart: onMeetingStart, onStop: onMeetingStop,
   })
   const folderSuggestions = createFolderSuggestions({ store, queue, model, changed: () => win?.webContents.send('folders:changed') })
   let resumingId: string | null = null
   const removeRecording = (id: string, automatic = false) => deleteRecording(id, {
     store, dirOf: meetingDir,
-    busy: id => resumingId === id || stopSavePending(id),
+    busy: id => resumingId === id || stopSavePending(id) || speakers.busy(id),
     settle: async id => { await rejoined; await recordingFinished(id); await transcriptFinished(id) },
     removed: id => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send('audio:deleted', id) },
     ...(automatic ? { keep: endedAt => keepsRecording(loadSettings(settingsFile), endedAt) } : {}),
@@ -661,7 +693,8 @@ app.whenReady().then(() => {
     summarized: id => { folderSuggestions.schedule(id); void removeRecording(id, true) },
     // Windows and Linux: a note waiting while the model loads says so (a Mac shows what it always did)
     showLoading: true,
-    store, queue, model, language: meetingLanguage, onStop: onMeetingStopSaved, named: (id) => callNames.finished(id), earlier: (id) => readAhead.parts(id), me,
+    store, queue, model, language: meetingLanguage, onStop: onMeetingStopSaved, named: (id) => callNames.finished(id), earlier: id => speakerTarget() ? [] : readAhead.parts(id), me,
+    beforeSummary: async id => { await recordingFinished(id); await transcriptFinished(id); return speakers.beforeSummary(id) },
     transcribed: async (id) => { await recordingFinished(id); await transcriptFinished(id) },
     send: (v) => win?.webContents.send('notes:changed', v),
     // the notes are written: the meeting goes into the library for chat across meetings
@@ -673,7 +706,7 @@ app.whenReady().then(() => {
     if (current) { goTo(`/note/${current.id}`); return { id: current.id } }
     const existing = store.meeting(id)
     if (!existing || existing.trashedAt != null || (existing.state !== 'stopped' && existing.state !== 'done')) return { error: 'gone' }
-    if (resumingId || stopSavePending(id) || finishing || !notes.retryDrafts(id)) return { error: 'failed' }
+    if (resumingId || speakers.busy(id) || stopSavePending(id) || finishing || !notes.retryDrafts(id)) return { error: 'failed' }
     resumingId = id
     const analysis = notes.suspendForResume(id)
     let started = false, timer: NodeJS.Timeout | undefined
@@ -946,6 +979,7 @@ app.whenReady().then(() => {
     settle: async (id) => { await Promise.all([recordingFinished(id), transcriptFinished(id)]) },
     removed: (id) => {
       notes.forgetDrafts(id)
+      speakers.forget(id)
       win?.webContents.send('meetings:changed'); win?.webContents.send('folders:changed')
       // the note on screen was this one: back home
       if (route === `/note/${id}`) { route = ''; win?.webContents.send('nav:go', route) }

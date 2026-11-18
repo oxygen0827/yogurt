@@ -30,6 +30,7 @@ export function hookNotes(p: {
   transcribed: (id: string) => Promise<void>
   /** the names from the call are on its lines (callNames) */
   named?: (id: string) => Promise<void>
+  beforeSummary?: (id: string) => Promise<boolean>
   /** the language most of the meeting was in, when the transcription knows it */
   language: (id: string) => string | null
   onStop: (fn: (m: Meeting) => void) => unknown
@@ -218,7 +219,15 @@ export function hookNotes(p: {
     p.send(view(m.id))
   }
 
-  const queueWrite = (id: string) => {
+  const queueWrite = async (id: string) => {
+    set(id, 'waiting')
+    try {
+      if (p.beforeSummary && !await p.beforeSummary(id)) { live.delete(id); p.send(view(id)); return }
+    } catch {
+      set(id, 'failed')
+      return
+    }
+    if (resuming.has(id)) return
     console.info('NOTES', `queued the notes of ${id}`)
     set(id, 'waiting')
     return p.queue.enqueue(async (signal) => {

@@ -129,6 +129,18 @@ const api: YogurtApi = {
     copy: (id, what, side) => ipcRenderer.invoke('share:copy', id, what, side),
     save: (id, side) => ipcRenderer.invoke('share:save', id, side),
   },
+  speakers: {
+    host: () => ipcRenderer.invoke('speakers:host'),
+    setHost: host => ipcRenderer.invoke('speakers:host-save', host),
+    get: id => ipcRenderer.invoke('speakers:get', id),
+    analyze: id => ipcRenderer.invoke('speakers:analyze', id),
+    apply: (id, names) => ipcRenderer.invoke('speakers:apply', id, names),
+    onChange: cb => {
+      const on = (_e: unknown, id: string) => cb(id)
+      ipcRenderer.on('speakers:changed', on)
+      return () => ipcRenderer.removeListener('speakers:changed', on)
+    },
+  },
   audio: {
     delete: (id) => ipcRenderer.invoke('audio:delete', id),
     onDeleted: (cb) => {
