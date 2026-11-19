@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Download for <a href="https://github.com/oxygen0827/yogurt/releases/download/fork-0.3.27.2/Yogurt-mac-arm64.dmg">Mac (Apple Silicon, fork)</a> · <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-windows-x64.exe">Windows (upstream)</a> · <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-linux-x86_64.AppImage">Linux (upstream)</a>
+  Download for <a href="https://github.com/oxygen0827/yogurt/releases/download/fork-0.3.27.3/Yogurt-mac-arm64.dmg">Mac (Apple Silicon, fork)</a> · <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-windows-x64.exe">Windows (upstream)</a> · <a href="https://github.com/FrigadeHQ/yogurt/releases/latest/download/Yogurt-linux-x86_64.AppImage">Linux (upstream)</a>
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
 
 ## 本机版安装与更新（Apple Silicon）
 
-页首提供 `fork-0.3.27.2` 的 Apple Silicon 安装包，包含腾讯会议与飞书支持、会议文件夹、云端模型和实验性的微信在线转写。此安装包使用 Yogurt Local 自签名证书，未经 Apple 公证。Spark 会后说话人识别需要从当前源码构建。
+页首提供 `fork-0.3.27.3` 的 Apple Silicon 安装包，包含腾讯会议与飞书支持、会议文件夹、云端模型、实验性的微信在线转写，以及 Spark 会后说话人识别与声纹库。此安装包使用 Yogurt Local 自签名证书，未经 Apple 公证。
 
 在自己的 Mac 上准备名为 `Yogurt Local` 的有效代码签名身份后，在仓库根目录运行 `npm run package:mac:local`。生成的安装包位于 `app/dist/local-signed/Yogurt-mac-arm64.dmg`。将 Yogurt 放入「应用程序」，在「系统设置 → 隐私与安全性 → 辅助功能」中添加并开启它，即可使用发言人标注。后续本机更新请复用同一证书和打包命令，以便 macOS 沿用授权。详见[构建说明](docs/building.md)。
 
@@ -53,7 +53,7 @@ Yogurt 在录音结束后用 DGX Spark 上的 3D-Speaker 分离对方音轨中�
    ssh yogurt-spark 'sh ~/.local/share/yogurt-speaker/install.sh'
    ```
 
-3. 用当前源码构建 Yogurt，然后在「设置 → 会后说话人识别」里保存同一个 SSH 主机别名。清空别名并保存即可关闭。
+3. 安装页首提供的 Mac 版，或从当前源码构建 Yogurt。在「设置 → 会后说话人识别」里保存同一个 SSH 主机别名。清空别名并保存即可关闭。
 
 ### 登记姓名与生成纪要
 
