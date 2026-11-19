@@ -132,6 +132,10 @@ const api: YogurtApi = {
   speakers: {
     host: () => ipcRenderer.invoke('speakers:host'),
     setHost: host => ipcRenderer.invoke('speakers:host-save', host),
+    meetings: () => ipcRenderer.invoke('speakers:meetings'),
+    profiles: () => ipcRenderer.invoke('speakers:profiles'),
+    renameProfile: (name, next) => ipcRenderer.invoke('speakers:profile-rename', name, next),
+    removeProfile: name => ipcRenderer.invoke('speakers:profile-remove', name),
     get: id => ipcRenderer.invoke('speakers:get', id),
     analyze: id => ipcRenderer.invoke('speakers:analyze', id),
     apply: (id, names) => ipcRenderer.invoke('speakers:apply', id, names),

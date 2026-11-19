@@ -7,7 +7,7 @@ import { Check, ChevronDown, Copy, Download, ExternalLink, Globe, Lock, Upload }
 import type { Access, McpStatus, PermissionKind, PermissionStatus, SetupState, Theme, UpdateStatus } from '../../../shared/types'
 import { notesDownloadText, notesUpgradeSize } from '../notesSetup'
 import { permissionCopy } from '../permissionCopy'
-import { LOCALES, t } from '../../../shared/i18n'
+import { language, LOCALES, t } from '../../../shared/i18n'
 import { osWords } from '../keys'
 import { applyLanguage } from '../i18n'
 import { flushOpenNotes } from '../noteAutosave'
@@ -26,7 +26,7 @@ const trayLabel = () => osWords({ mac: t('Show Yogurt in the menu bar'), windows
 
 /** Settings, kept small: what Yogurt may use, your name, open at login, stop when the call ends, light or dark, a backup and updates. Nothing technical. */
 /** focus: the setting a toast's Settings button opens, recordings or notes-model */
-export function Settings({ revision = 0, focus }: { revision?: number; focus?: string }) {
+export function Settings({ revision = 0, focus, openSpeakerMeeting }: { revision?: number; focus?: string; openSpeakerMeeting: (id: string) => void }) {
   const [perms, setPerms] = useState<PermissionStatus>()
   const [prefs, setPrefs] = useState<{ theme: Theme; openAtLogin: boolean; showInMenuBar: boolean; myName: string; macName: string; stopWhenCallEnds: boolean; recordingReminder: boolean; keepRecordings: boolean }>()
   const [name, setName] = useState('')
@@ -134,7 +134,9 @@ export function Settings({ revision = 0, focus }: { revision?: number; focus?: s
 
           <h2 className="settings-section-heading">{t('What Yogurt can use')}</h2>
           <LoadingContent pending={!perms}><ul className="settings-group">
-            {supportedKinds(window.yogurt.capabilities).map((k) => <PermissionRow key={k} kind={k} status={perms?.[k]} onAsk={() => void window.yogurt.permissions.request(k).then(reload)} />)}
+            {supportedKinds(window.yogurt.capabilities).map((k) => <PermissionRow key={k} kind={k} status={perms?.[k]}
+              onAsk={() => void window.yogurt.permissions.request(k).then(reload)}
+              openSpeakerLibrary={k === 'accessibility' && window.yogurt.platform === 'darwin' ? () => window.yogurt.nav.go('/settings/speakers') : undefined} />)}
           </ul></LoadingContent>
 
           {window.yogurt.capabilities.calendar && <CalendarSettings />}
@@ -148,7 +150,7 @@ export function Settings({ revision = 0, focus }: { revision?: number; focus?: s
           </div>
 
           <CloudModelSetting />
-          <SpeakerSettings />
+          {window.yogurt.platform === 'darwin' && <SpeakerSettings reveal={focus === 'speakers'} openMeeting={openSpeakerMeeting} />}
           <MeetingStorage />
           <Backup />
 
@@ -238,7 +240,7 @@ function AppLanguage() {
   )
 }
 
-export function PermissionRow({ kind, status, onAsk }: { kind: PermissionKind; status?: Access; onAsk(): void }) {
+export function PermissionRow({ kind, status, onAsk, openSpeakerLibrary }: { kind: PermissionKind; status?: Access; onAsk(): void; openSpeakerLibrary?(): void }) {
   const c = permissionCopy(kind)
   const Icon = c.icon
   const ask = status === 'unknown' && kind !== 'accessibility'
@@ -256,6 +258,9 @@ export function PermissionRow({ kind, status, onAsk }: { kind: PermissionKind; s
           </span>}
         </p>
         <p className="settings-description">{c.reason}</p>
+        {openSpeakerLibrary && <button className="workspace-button mt-2" onClick={openSpeakerLibrary}>
+          {language().startsWith('zh') ? '会后标注与声纹库' : 'Post-meeting labels and voice library'}
+        </button>}
       </div>
       {status !== 'restricted' ? (
         <button data-testid={ask ? 'permission-ask' : 'permission-open'} onClick={ask ? onAsk : () => void window.yogurt.permissions.open(kind)}

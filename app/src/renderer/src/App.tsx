@@ -171,7 +171,9 @@ export function App() {
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
   }, [ready, holding])
-  const open = (id: string) => { setSearching(false); go(`/note/${id}`) }
+  const [speakerMeeting, setSpeakerMeeting] = useState<string>()
+  const open = (id: string) => { setSpeakerMeeting(undefined); setSearching(false); go(`/note/${id}`) }
+  const openSpeakerMeeting = (id: string) => { open(id); setSpeakerMeeting(id) }
   /** A citation opens its matching notes paragraph or transcript segment. */
   const [jump, setJump] = useState<{ id: string; ms: number | null; match?: string; seq: number }>()
   const openSource = (s: LibrarySource, match?: string) => {
@@ -190,7 +192,9 @@ export function App() {
   const suggestedFolder = noteId ? folders?.find((s) => s.id === suggestedFolders[noteId]) : undefined
   // a folder's page waits for the list; a folder that is gone shows Meetings
   const folderScreen = folderId && (folder ? <Folder key={folder.id} folder={folder} open={open} onStarted={(id) => setSuggestedFolders((current) => ({ ...current, [id]: folder.id }))} /> : !folders ? <div className="native-folder"><StartRecording /><div className="native-library"><LoadingContent pending testId="meetings-loading" skeleton={<><div className="folder-page-heading"><h1><span className="loading-bar" style={{ width: 140 }} /></h1></div><MeetingListLoading showFolders={false} /></>} /></div></div> : null)
-  const screen = settings ? <Settings revision={settingsRevision} focus={route.startsWith('/settings/') ? route.slice('/settings/'.length) : undefined} /> : noteId ? <Note key={noteId} id={noteId} onSource={openSource} onTitleChange={setMeeting} at={jump?.id === noteId ? jump : undefined}
+  const screen = settings ? <Settings revision={settingsRevision} focus={route.startsWith('/settings/') ? route.slice('/settings/'.length) : undefined}
+    openSpeakerMeeting={openSpeakerMeeting} /> : noteId ? <Note key={noteId} id={noteId} onSource={openSource} onTitleChange={setMeeting}
+    at={speakerMeeting !== noteId && jump?.id === noteId ? jump : undefined} startInSpeakers={speakerMeeting === noteId}
     onResumeRequested={resumeRequested ? () => { setResumeRequested(false); rememberRoute(route) } : undefined}
     folderSuggestion={suggestedFolder ? { folder: suggestedFolder, dismiss: () => dismissFolderSuggestion(noteId) } : undefined} />
     : chatId !== undefined ? <ChatPage id={chatId} go={go} openSource={openSource} />

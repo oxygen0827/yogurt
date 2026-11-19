@@ -1,9 +1,15 @@
 import { AudioLines, Bell, CalendarDays, Mic, Users, type LucideIcon } from 'lucide-react'
 import type { PermissionKind } from '../../shared/types'
 import type { ScreenId } from '../../shared/onboarding'
-import { t } from '../../shared/i18n'
+import { language, t } from '../../shared/i18n'
 import { osWords } from './keys'
 
+function macCallNames() {
+  if (language() === 'zh-TW') return '讓 Yogurt 讀取 Zoom、Meet、Teams、騰訊會議與飛書顯示的發言者姓名。'
+  return language().startsWith('zh')
+    ? '让 Yogurt 读取 Zoom、Meet、Teams、腾讯会议和飞书显示的发言者姓名。'
+    : 'Lets Yogurt read speaker names shown by Zoom, Meet, Teams, Tencent Meeting, and Feishu.'
+}
 /**
  * What each permission gives the person: reason is the explanation Settings shows. pane and where
  * say where System Settings keeps it, for the guide. The first run's own words are in screenCopy.
@@ -27,7 +33,7 @@ export const permissionCopy = (k: PermissionKind): { icon: LucideIcon; name: str
       pane: t('Notifications'), where: t('In Notifications, click Yogurt, then turn on Allow notifications.'),
     }
     case 'accessibility': return {
-      icon: Users, name: t('Names from your calls'), reason: t('Lets Yogurt read who is talking in Zoom, Meet and Teams. Without it, the others show as Them.'),
+      icon: Users, name: t('Names from your calls'), reason: osWords({ mac: macCallNames(), other: t('Lets Yogurt read who is talking in Zoom, Meet and Teams. Without it, the others show as Them.') }),
       pane: t('Accessibility'), where: t('In Accessibility, find Yogurt and turn it on.'),
     }
   }
@@ -51,7 +57,7 @@ export const screenCopy = (id: 'welcome' | ScreenId | 'ready'): { title: string;
     case 'record': return { title: t('Hear the whole call'), text: t("Yogurt hears you through your microphone, and everyone else through your Mac's sound.") }
     case 'calendar': return { title: t('Know every meeting'), text: t("Notes start with the meeting's name and who's invited, from the calendars already on your Mac.") }
     case 'notifications': return { title: t('Never miss a call'), text: t('When a call starts, Yogurt offers to take notes. One click and it starts recording.') }
-    case 'accessibility': return { title: t('See who said what'), text: t('Yogurt reads the names Zoom, Meet and Teams show, so your transcript says who spoke instead of Them.') }
+    case 'accessibility': return { title: t('See who said what'), text: osWords({ mac: macCallNames(), other: t('Yogurt reads the names Zoom, Meet and Teams show, so your transcript says who spoke instead of Them.') }) }
     case 'ready': return { title: t('Almost ready'), text: osWords({ mac: t('Yogurt is setting up transcription. This happens once, then it all runs on your Mac.'), other: t('Yogurt is setting up transcription. This happens once, then it all runs on your computer.') }) }
   }
 }

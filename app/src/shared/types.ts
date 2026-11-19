@@ -31,6 +31,10 @@ export type YogurtApi = {
   speakers: {
     host(): Promise<string>
     setHost(host: string): Promise<void>
+    meetings(): Promise<Pick<Meeting, 'id' | 'title' | 'startedAt'>[]>
+    profiles(): Promise<string[]>
+    renameProfile(name: string, next: string): Promise<boolean>
+    removeProfile(name: string): Promise<boolean>
     get(id: string): Promise<SpeakerReview>
     analyze(id: string): Promise<SpeakerReview>
     apply(id: string, names: string[]): Promise<boolean>

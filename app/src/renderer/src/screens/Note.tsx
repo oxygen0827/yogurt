@@ -53,13 +53,14 @@ function useAutosave(id: string, side: NoteSide, text: string, saved?: NoteSaveR
 const readingViews = new Map<string, { primary: 'transcript' | 'notes'; view: 'mine' | 'enhanced' }>()
 
 /** A meeting keeps its reading tab when revisited; an explicit source or recording action can still switch it. */
-export function Note({ id, onTitleChange, at, folderSuggestion, onSource, onResumeRequested }: {
+export function Note({ id, onTitleChange, at, folderSuggestion, onSource, onResumeRequested, startInSpeakers = false }: {
   onSource: (s: LibrarySource, match?: string) => void
   id: string; onTitleChange: (meeting: Pick<MeetingView, 'id' | 'title'>) => void
   /** A citation target: null ms selects notes; seq identifies each Open action. */
   at?: { ms: number | null; match?: string; seq: number }
   folderSuggestion?: FolderSuggestion
   onResumeRequested?: () => void
+  startInSpeakers?: boolean
 }) {
   const [m, setM] = useState<MeetingView>()
   const [footer, setFooter] = useState<HTMLElement | null>(null)
@@ -92,7 +93,7 @@ export function Note({ id, onTitleChange, at, folderSuggestion, onSource, onResu
   /** the person picked a side themselves: it is never switched for them after that */
   const picked = useRef(readingViews.has(id))
   const typing = useRef(false)
-  const [primaryState, setPrimary] = useState<'transcript' | 'notes'>(() => readingViews.get(id)?.primary ?? 'notes')
+  const [primaryState, setPrimary] = useState<'transcript' | 'notes'>(() => startInSpeakers ? 'transcript' : readingViews.get(id)?.primary ?? 'notes')
   const primary = instantSummary ? 'notes' : primaryState
   const readingScroll = useScrollMemory<HTMLElement>(`note/${id}/${view}`, !!m && !!notes && primary === 'notes')
   useEffect(() => { if (m && notes) readingViews.set(id, { primary, view }) }, [id, m, notes, primary, view])
@@ -402,7 +403,8 @@ export function Note({ id, onTitleChange, at, folderSuggestion, onSource, onResu
                 /> : <Enhanced focus={primary === 'notes' && at?.ms === null ? at : undefined} notes={notes} disabled={starting} onChange={(md) => { setEditedHere(true); const next = { ...current.current!, enhanced: md }; current.current = next; setNotes(next); enhancedSave.change(md) }} onBlur={enhancedSave.flush} onRetry={writeAgain} />}
           </NoteReadingPane>
           {(primary === 'transcript' || transcriptVisited) && <section hidden={primary !== 'transcript'} id="note-transcript-panel" role="tabpanel" aria-labelledby="note-transcript-tab" className="note-content note-transcript-pane">
-            {primary === 'transcript' && !recording && m.state !== 'prepared' && <MeetingSpeakers key={id} id={id} />}
+            {window.yogurt.platform === 'darwin' && primary === 'transcript' && !recording && m.state !== 'prepared' &&
+              <MeetingSpeakers key={id} id={id} initialOpen={startInSpeakers} />}
             <Transcript id={id} recording={recording} active={primary === 'transcript'} inline toolbar={transcriptToolbar} focus={at?.ms != null ? { ...at, ms: at.ms } : undefined} />
           </section>}
           </div>

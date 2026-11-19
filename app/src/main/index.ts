@@ -648,9 +648,10 @@ app.whenReady().then(() => {
     const host = loadSettings(settingsFile).speakerHost
     return sshTarget(host) ? host : undefined
   }
+  const speakerTrack = (id: string) => trackFile(meetingDir(id), 'them', audioExts(process.platform, isFake()))
   const speakers = speakerReview({
     dir: join(userDataDir(), 'speaker-profiles'), store, target: speakerTarget,
-    track: id => trackFile(meetingDir(id), 'them', audioExts(process.platform, isFake())),
+    track: speakerTrack,
     changed: id => {
       win?.webContents.send('speakers:changed', id)
       win?.webContents.send('transcript:speakers', id)
@@ -658,6 +659,12 @@ app.whenReady().then(() => {
     },
   })
   ipcMain.handle('speakers:host', () => speakerTarget() ?? '')
+  ipcMain.handle('speakers:profiles', () => speakers.profileNames())
+  ipcMain.handle('speakers:profile-rename', (_e, name: unknown, next: unknown) => speakers.renameProfile(name, next))
+  ipcMain.handle('speakers:profile-remove', (_e, name: unknown) => speakers.removeProfile(name))
+  ipcMain.handle('speakers:meetings', () => store.meetings({ limit: 100 })
+    .filter(m => ['stopped', 'done'].includes(m.state) && !recordingFilesBusy(m.id) && speakerTrack(m.id))
+    .slice(0, 20).map(({ id, title, startedAt }) => ({ id, title, startedAt })))
   ipcMain.handle('speakers:host-save', (_e, host: unknown) => {
     if (host !== '' && !sshTarget(host)) throw new Error('Enter an SSH host alias')
     updateSettings(settingsFile, { speakerHost: host || undefined })

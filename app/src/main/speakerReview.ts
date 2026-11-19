@@ -1,9 +1,8 @@
 import { execFile } from 'node:child_process'
 import { createReadStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Segment } from './store'
+import type { Segment, Store } from './store'
 import type { SpeakerReview } from '../shared/types'
-import type { Store } from './store'
 
 type Voice = { id: number; vector: number[] | null; sampleMs: number; sampleEndMs: number }
 type Turn = { startMs: number; endMs: number; speaker: number }
@@ -15,6 +14,9 @@ const dims = 192
 const validVector = (v: unknown): v is number[] => Array.isArray(v) && v.length === dims &&
   v.every(Number.isFinite) && Math.abs(Math.hypot(...v) - 1) < .01
 export const sshTarget = (target: unknown): target is string => typeof target === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$/.test(target)
+const validName = (name: unknown): name is string =>
+  typeof name === 'string' && name.length <= 80 && !/[\x00-\x1f]/.test(name)
+const hasCallName = (s: Segment) => !!s.speaker && !/^(?:待确认|说话人 \d+)$/.test(s.speaker)
 
 function analyze(target: string, file: string, segments: Segment[]): Promise<Result> {
   return new Promise((resolve, reject) => {
@@ -122,6 +124,7 @@ export function speakerReview(o: { dir: string; store: Store; target: () => stri
     try {
       for (const s of o.store.segments(id).filter(s => s.track === 'them')) {
         const speaker = speakerAt(s, r.turns)
+        if (hasCallName(s) && (!enroll || speaker === undefined || !names.get(speaker))) continue
         const parts = replacements.get(s.id)
         if (parts && parts.every(p => p.startMs >= s.startMs && p.endMs <= s.endMs) &&
             similarText(s.text, parts.map(p => p.text).join(''))) {
@@ -174,8 +177,34 @@ export function speakerReview(o: { dir: string; store: Store; target: () => stri
     start,
     busy: (id: string) => busy.has(id),
     forget(id: string) { rmSync(file(id), { force: true }); failed.delete(id) },
+    profileNames: () => profiles().map(p => p.name),
+    renameProfile(current: unknown, requested: unknown) {
+      if (!validName(current) || !validName(requested)) return false
+      const next = requested.trim()
+      if (!next) return false
+      const all = profiles()
+      const from = all.find(p => p.name === current)
+      if (!from) return false
+      if (from.name === next) return true
+      if (all.some(p => p.name === next)) return false
+      from.name = next
+      write(profileFile, all)
+      return true
+    },
+    removeProfile(name: unknown) {
+      if (!validName(name)) return false
+      const all = profiles()
+      const next = all.filter(p => p.name !== name)
+      if (all.length === next.length) return false
+      write(profileFile, next)
+      return true
+    },
     async beforeSummary(id: string) {
-      if (!o.target() || !o.store.segments(id).some(s => s.track === 'them')) return true
+      if (!o.target()) return true
+      const cached = result(id)
+      if (cached?.names) return true
+      const otherLines = o.store.segments(id).filter(s => s.track === 'them')
+      if (!cached && !busy.has(id) && otherLines.every(hasCallName)) return true
       await start(id)
       return !!result(id)?.names
     },
@@ -192,7 +221,7 @@ export function speakerReview(o: { dir: string; store: Store; target: () => stri
       const names = new Map<number, string>()
       for (const [i, v] of r.voices.entries()) {
         const name: unknown = values[i]
-        if (typeof name !== 'string' || name.length > 80 || /[\x00-\x1f]/.test(name)) return false
+        if (!validName(name)) return false
         names.set(v.id, name.trim())
       }
       label(id, r, names, true)
